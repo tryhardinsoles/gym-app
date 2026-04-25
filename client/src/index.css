@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-950 text-white font-sans antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand-500 hover:bg-brand-600 active:scale-95 text-white font-bold py-4 px-8 rounded-2xl text-lg transition-all duration-200 shadow-lg shadow-brand-500/30 w-full;
+  }
+  .btn-secondary {
+    @apply bg-gray-800 hover:bg-gray-700 active:scale-95 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 w-full;
+  }
+  .card {
+    @apply bg-gray-900 border border-gray-800 rounded-3xl p-6;
+  }
+  .input-field {
+    @apply bg-gray-800 border border-gray-700 rounded-2xl px-4 py-4 text-white text-lg w-full focus:outline-none focus:border-brand-500 transition-colors placeholder-gray-500;
+  }
+  .exercise-name {
+    @apply font-bold text-white cursor-pointer transition-all duration-200
+           drop-shadow-[0_0_8px_rgba(74,222,128,0.6)]
+           hover:drop-shadow-[0_0_14px_rgba(74,222,128,0.9)]
+           hover:text-brand-400 underline decoration-brand-500/50;
+  }
+}

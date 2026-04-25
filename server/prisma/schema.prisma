@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  routines        Routine[]
+  workoutSessions WorkoutSession[]
+  wellbeingLogs   WellbeingLog[]
+}
+
+model Routine {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  order       Int
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  sections        RoutineSection[]
+  workoutSessions WorkoutSession[]
+}
+
+model RoutineSection {
+  id        String   @id @default(cuid())
+  routineId String
+  routine   Routine  @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  name      String
+  order     Int
+
+  exercises Exercise[]
+}
+
+model Exercise {
+  id          String         @id @default(cuid())
+  sectionId   String
+  section     RoutineSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  name        String
+  repetitions String
+  weight      String?
+  series      Int
+  youtubeUrl  String?
+  order       Int
+
+  feedbacks ExerciseFeedback[]
+}
+
+model ExerciseFeedback {
+  id         String         @id @default(cuid())
+  exerciseId String
+  exercise   Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  sessionId  String
+  session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  feedback   String
+  createdAt  DateTime       @default(now())
+
+  @@unique([exerciseId, sessionId])
+}
+
+model WorkoutSession {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routineId   String
+  routine     Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  feedbacks ExerciseFeedback[]
+}
+
+model WellbeingLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score     Int
+  createdAt DateTime @default(now())
+}
