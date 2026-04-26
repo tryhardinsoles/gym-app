@@ -63,13 +63,11 @@ export default function Home() {
 
       <div className="flex-1 flex flex-col items-center justify-center py-10 gap-8">
         <div className="text-center">
-          <div className="text-6xl mb-4">🌟</div>
-          <p className="text-2xl font-black text-white">¡Hola, {user?.username}!</p>
+          <p className="text-2xl font-black text-white">Hola, {user?.username}</p>
           <p className="text-gray-400 mt-2">No tenés rutinas pendientes por ahora.</p>
         </div>
 
         <div className="card text-center max-w-sm mx-auto">
-          <div className="text-3xl mb-4">💬</div>
           <blockquote className="text-white text-lg font-semibold leading-snug mb-4">
             "{quote.text}"
           </blockquote>
@@ -95,9 +93,6 @@ export default function Home() {
 
       {/* Welcome card */}
       <div className="card mt-6 text-center">
-        <div className="text-5xl mb-4">
-          {recentlyCompleted ? '🏆' : '💪'}
-        </div>
         <p className="text-xl font-bold text-white leading-tight">{message}</p>
         {recentlyCompleted && lastCompleted && (
           <p className="text-brand-400 text-sm mt-3 font-medium">
@@ -125,7 +120,7 @@ export default function Home() {
           className="btn-primary text-xl py-5"
           onClick={() => navigate('/routine')}
         >
-          🏋️ Comenzar Rutina
+          Comenzar Rutina
         </button>
       </div>
     </div>

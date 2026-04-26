@@ -157,6 +157,90 @@ router.put('/routines/:id', requireAdmin, async (req, res) => {
   res.json(routine);
 });
 
+// Importar CSV de rutinas (12 dias → agrupados en un nuevo mes)
+router.post('/users/:id/import-csv', requireAdmin, async (req, res) => {
+  const { csvText } = req.body;
+  if (!csvText) return res.status(400).json({ error: 'Falta el contenido CSV' });
+
+  function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (const ch of line) {
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+      else { current += ch; }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  const lines = csvText.trim().replace(/\r/g, '').split('\n');
+  const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase());
+  const idx = k => headers.indexOf(k);
+
+  const rows = lines.slice(1)
+    .map(line => parseCSVLine(line))
+    .filter(vals => vals.length > 1 && vals[idx('dia')])
+    .map(vals => ({
+      dia: parseInt(vals[idx('dia')]),
+      seccion: vals[idx('seccion')]?.trim(),
+      ejercicio: vals[idx('ejercicio')]?.trim(),
+      repeticiones: vals[idx('repeticiones')]?.trim(),
+      series: parseInt(vals[idx('series')]) || 1,
+      peso: vals[idx('peso')]?.trim() || null,
+      youtube: vals[idx('youtube')]?.trim() || null,
+    }))
+    .filter(r => r.dia >= 1 && r.dia <= 12 && r.seccion && r.ejercicio);
+
+  if (rows.length === 0) return res.status(400).json({ error: 'El CSV no tiene filas válidas' });
+
+  const userId = req.params.id;
+  const SECTION_NAMES = ['Entrada en calor', 'Bloque 1', 'Bloque 2', 'Bloque 3', 'Bloque 4'];
+
+  const [lastMesRow, lastOrderRow] = await Promise.all([
+    prisma.routine.findFirst({ where: { userId }, orderBy: { mes: 'desc' }, select: { mes: true } }),
+    prisma.routine.findFirst({ where: { userId }, orderBy: { order: 'desc' }, select: { order: true } }),
+  ]);
+  const nextMes = (lastMesRow?.mes ?? 0) + 1;
+  let nextOrder = (lastOrderRow?.order ?? 0) + 1;
+
+  const byDia = {};
+  rows.forEach(r => {
+    if (!byDia[r.dia]) byDia[r.dia] = {};
+    if (!byDia[r.dia][r.seccion]) byDia[r.dia][r.seccion] = [];
+    byDia[r.dia][r.seccion].push(r);
+  });
+
+  let createdCount = 0;
+  for (let dia = 1; dia <= 12; dia++) {
+    if (!byDia[dia]) continue;
+    const sections = SECTION_NAMES
+      .filter(sName => byDia[dia][sName]?.length > 0)
+      .map((sName, si) => ({
+        name: sName,
+        order: si,
+        exercises: {
+          create: byDia[dia][sName].map((r, ei) => ({
+            name: r.ejercicio,
+            repetitions: r.repeticiones,
+            weight: r.peso,
+            series: r.series,
+            youtubeUrl: r.youtube,
+            order: ei,
+          }))
+        }
+      }));
+
+    await prisma.routine.create({
+      data: { userId, name: `Dia ${dia}`, order: nextOrder++, mes: nextMes, sections: { create: sections } }
+    });
+    createdCount++;
+  }
+
+  res.json({ created: createdCount, mes: nextMes });
+});
+
 // Eliminar rutina
 router.delete('/routines/:id', requireAdmin, async (req, res) => {
   await prisma.routine.delete({ where: { id: req.params.id } });

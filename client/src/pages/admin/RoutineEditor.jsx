@@ -242,7 +242,7 @@ export default function RoutineEditor() {
             <p className="text-red-400 text-sm text-center bg-red-500/10 rounded-xl px-4 py-2">{error}</p>
           )}
           <button className="btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Guardando...' : isEdit ? '💾 Guardar cambios' : '💾 Crear rutina'}
+            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear rutina'}
           </button>
         </div>
       </div>

@@ -25,6 +25,7 @@ model Routine {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   order       Int
+  mes         Int       @default(1)
   completedAt DateTime?
   createdAt   DateTime  @default(now())
 
