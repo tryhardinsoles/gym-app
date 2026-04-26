@@ -8,6 +8,7 @@ import AdminLogin from './pages/admin/AdminLogin.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
 import UserDetail from './pages/admin/UserDetail.jsx';
 import RoutineEditor from './pages/admin/RoutineEditor.jsx';
+import UserStats from './pages/admin/UserStats.jsx';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/admin/users/:userId/routines/new" element={<ProtectedRoute adminOnly><RoutineEditor /></ProtectedRoute>} />
           <Route path="/admin/users/:userId/routines/:routineId" element={<ProtectedRoute adminOnly><RoutineEditor /></ProtectedRoute>} />
           <Route path="/admin/users/:userId/routines/:routineId/play" element={<ProtectedRoute adminOnly><Routine adminPlay /></ProtectedRoute>} />
+          <Route path="/admin/users/:userId/stats" element={<ProtectedRoute adminOnly><UserStats /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

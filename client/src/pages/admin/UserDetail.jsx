@@ -61,12 +61,20 @@ export default function UserDetail() {
         </div>
       </div>
 
-      <button
-        className="btn-primary mb-6 py-3 text-base"
-        onClick={() => navigate(`/admin/users/${userId}/routines/new`)}
-      >
-        + Agregar rutina
-      </button>
+      <div className="flex gap-3 mb-6">
+        <button
+          className="btn-primary flex-1 py-3 text-base"
+          onClick={() => navigate(`/admin/users/${userId}/routines/new`)}
+        >
+          + Agregar rutina
+        </button>
+        <button
+          className="bg-gray-800 text-gray-300 hover:bg-gray-700 font-bold px-5 py-3 rounded-2xl transition-colors text-base"
+          onClick={() => navigate(`/admin/users/${userId}/stats`)}
+        >
+          📊 Stats
+        </button>
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-10">

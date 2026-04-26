@@ -200,5 +200,67 @@ router.get('/routines/:id/play-data', requireAdmin, async (req, res) => {
   res.json({ routine, sessionId: session.id, feedbacks: session.feedbacks });
 });
 
+// Estadísticas de un usuario
+router.get('/users/:userId/stats', requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+
+  const [sessions, wellbeingLogs] = await Promise.all([
+    prisma.workoutSession.findMany({
+      where: { userId, completedAt: { not: null } },
+      include: {
+        routine: {
+          include: {
+            sections: {
+              orderBy: { order: 'asc' },
+              include: { exercises: { orderBy: { order: 'asc' } } }
+            }
+          }
+        },
+        feedbacks: true
+      },
+      orderBy: { completedAt: 'asc' }
+    }),
+    prisma.wellbeingLog.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' }
+    })
+  ]);
+
+  const result = sessions.map(session => {
+    const sessionDate = new Date(session.createdAt).toDateString();
+    const wellbeing = wellbeingLogs.find(
+      log => new Date(log.createdAt).toDateString() === sessionDate
+    );
+
+    const sections = session.routine.sections
+      .filter(sec => sec.exercises.length > 0)
+      .map(sec => ({
+        name: sec.name,
+        exercises: sec.exercises.map(ex => {
+          const fb = session.feedbacks.find(f => f.exerciseId === ex.id);
+          return { name: ex.name, feedback: fb?.feedback ?? null };
+        })
+      }));
+
+    const feedbackValues = session.feedbacks.map(f => f.feedback);
+
+    return {
+      id: session.id,
+      routineName: session.routine.name,
+      completedAt: session.completedAt,
+      wellbeingScore: wellbeing?.score ?? null,
+      sections,
+      feedbackSummary: {
+        green: feedbackValues.filter(f => f === 'green').length,
+        yellow: feedbackValues.filter(f => f === 'yellow').length,
+        red: feedbackValues.filter(f => f === 'red').length,
+        total: feedbackValues.length
+      }
+    };
+  });
+
+  res.json(result);
+});
+
 export default router;
 
