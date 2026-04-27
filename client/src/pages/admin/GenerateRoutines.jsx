@@ -19,6 +19,7 @@ export default function GenerateRoutines() {
   const [studentLevel, setStudentLevel] = useState(2);
   const [canDoImpact, setCanDoImpact] = useState(true);
   const [routineType, setRoutineType] = useState('localizada');
+  const [dayPatterns, setDayPatterns] = useState(Array(12).fill('libre'));
   const [csvFile, setCsvFile] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +35,7 @@ export default function GenerateRoutines() {
         studentLevel,
         canDoImpact,
         routineType,
+        dayPatterns,
       });
       alert(`Mes ${data.mes} generado — ${data.created} rutinas creadas.`);
       navigate(`/admin/users/${userId}`);
@@ -49,9 +51,9 @@ export default function GenerateRoutines() {
       <div className="flex items-center gap-3 pt-6 mb-8">
         <button
           onClick={() => navigate(`/admin/users/${userId}`)}
-          className="text-gray-400 hover:text-white transition-colors"
+          className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors"
         >
-          Volver
+          ← Volver
         </button>
         <div>
           <h1 className="text-xl font-black text-white">Generar Rutinas</h1>
@@ -137,7 +139,7 @@ export default function GenerateRoutines() {
               B1: Tren Inferior<br/>
               B2: Tren Superior<br/>
               B3: TI + TS mezclado<br/>
-              B4: 1 Aeróbico
+              B4: vacío (manual)
             </div>
           </button>
           <button
@@ -157,6 +159,50 @@ export default function GenerateRoutines() {
           </button>
         </div>
       </div>
+
+      {/* Patrón por día — solo Localizada */}
+      {routineType === 'localizada' && (
+        <div className="card mb-4">
+          <h2 className="text-base font-black text-white mb-1">Patrón por día</h2>
+          <p className="text-gray-500 text-sm mb-4">
+            Aplica al Tren Superior (B2 y B3). Requiere columna "Patron" en el CSV; si no existe se usa Libre.
+          </p>
+          <div className="space-y-2">
+            {Array.from({ length: 12 }, (_, i) => i).map(i => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-gray-500 text-xs font-bold w-9 shrink-0">Día {i + 1}</span>
+                <div className="flex gap-1 flex-1">
+                  {[
+                    { value: 'empuje',   label: 'Empujes / Pecho / Tríceps' },
+                    { value: 'traccion', label: 'Tracciones / Espalda' },
+                    { value: 'libre',    label: 'Mix libre' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => {
+                        const next = [...dayPatterns];
+                        next[i] = opt.value;
+                        setDayPatterns(next);
+                      }}
+                      className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-colors ${
+                        dayPatterns[i] === opt.value
+                          ? opt.value === 'empuje'
+                            ? 'bg-brand-500 text-black'
+                            : opt.value === 'traccion'
+                              ? 'bg-blue-500/80 text-white'
+                              : 'bg-gray-600 text-white'
+                          : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-gray-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Progresión */}
       <div className="card mb-4">

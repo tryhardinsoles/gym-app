@@ -461,23 +461,17 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
       .sort((a, b) => Math.abs(a.dificultad - lvl) - Math.abs(b.dificultad - lvl));
 
     const selected = [];
-    let higherUsed = false;
     for (const ex of candidates) {
       if (selected.length >= count) break;
-      const diff = ex.dificultad - lvl;
-      if (lvl <= 3) {
-        if (diff > 1) continue;               // demasiado difícil
-        if (diff === 1 && higherUsed) continue; // ya usamos 1 ejercicio más difícil en este bloque
-        if (diff === 1) higherUsed = true;
-      }
+      if (lvl <= 3 && (ex.dificultad - lvl) > 2) continue; // máximo +2 niveles de dificultad
       selected.push(ex);
       usedToday.add(ex.nombre);
     }
     return selected;
   };
 
-  const EVEN_POOL = [8, 10, 12, 14, 16, 18];
-  const roundToEven = (n) => Math.round(n / 2) * 2;
+  const EVEN_POOL = [8, 10, 12];
+  const roundToEven = (n) => Math.min(12, Math.max(8, Math.round(n / 2) * 2));
   const makeSection = (name, exercises, series, repMod) => {
     const shuffled = [...EVEN_POOL].sort(() => Math.random() - 0.5);
     return {
@@ -485,7 +479,7 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
       exercises: exercises.map((ex, i) => ({
         name: ex.nombre,
         youtubeUrl: ex.url || null,
-        repetitions: String(Math.max(4, roundToEven(shuffled[i % EVEN_POOL.length] * repMod))),
+        repetitions: String(roundToEven(shuffled[i % EVEN_POOL.length] * repMod)),
         series,
       }))
     };
@@ -498,18 +492,16 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
   const makePatternFilter = (pattern) => {
     if (!hasPatronColumn || pattern === 'libre') return null;
     if (pattern === 'empuje') {
-      return (ex) => ex.patron && (
-        ex.patron.toLowerCase().includes('pecho') ||
-        ex.patron.toLowerCase().includes('tricep') ||
-        ex.patron.toLowerCase().includes('empuje')
-      );
+      return (ex) => {
+        const p = ex.patron.toLowerCase();
+        return p.includes('empuje') || p.includes('tricep') || p.includes('pecho');
+      };
     }
     if (pattern === 'traccion') {
-      return (ex) => ex.patron && (
-        ex.patron.toLowerCase().includes('espalda') ||
-        ex.patron.toLowerCase().includes('traccion') ||
-        ex.patron.toLowerCase().includes('tracción')
-      );
+      return (ex) => {
+        const p = ex.patron.toLowerCase();
+        return p.includes('traccion') || p.includes('tracción') || p.includes('espalda');
+      };
     }
     return null;
   };
@@ -543,10 +535,7 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
       ];
       sections.push(makeSection('Bloque 3', b3, series, repMod));
 
-      const aerobicEx = pickFrom('Aerobico', 1, forbidden, usedToday);
-      if (aerobicEx.length > 0) {
-        sections.push({ name: 'Bloque 4', exercises: [{ name: aerobicEx[0].nombre, youtubeUrl: aerobicEx[0].url || null, repetitions: getAerobicTime(day), series: 1 }] });
-      }
+      // Bloque 4 se deja vacío para completar manualmente
 
     } else { // circuito
       const cats = exPerSection >= 4 ? CIRCUIT_CATS_4 : CIRCUIT_CATS_3;

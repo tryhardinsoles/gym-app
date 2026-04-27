@@ -28,8 +28,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-950">
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
-          <div className="text-6xl mb-4">💪</div>
-          <h1 className="text-4xl font-black text-white">GymApp</h1>
+          <h1 className="text-4xl font-black text-white tracking-tight">HARD TRAINING</h1>
           <p className="text-gray-400 mt-2">Ingresá con tus datos</p>
         </div>
 

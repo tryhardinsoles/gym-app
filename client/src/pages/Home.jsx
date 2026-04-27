@@ -104,7 +104,7 @@ export default function Home() {
   if (!hasPending) return (
     <div className="min-h-screen p-4 max-w-lg mx-auto">
       <div className="flex justify-between items-center pt-6 pb-2">
-        <span className="text-gray-500 text-sm font-medium">GymApp</span>
+        <span className="text-gray-500 text-sm font-medium tracking-tight">HARD TRAINING</span>
         <button onClick={logout} className="bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
           Salir
         </button>
@@ -136,7 +136,7 @@ export default function Home() {
     <div className="min-h-screen p-4 max-w-lg mx-auto">
       {/* Header */}
       <div className="flex justify-between items-center pt-6 pb-2">
-        <span className="text-gray-500 text-sm font-medium">GymApp</span>
+        <span className="text-gray-500 text-sm font-medium tracking-tight">HARD TRAINING</span>
         <button onClick={logout} className="bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
           Salir
         </button>

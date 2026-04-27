@@ -29,7 +29,11 @@ export default function ExerciseRow({ exercise, feedback, onFeedback, onExercise
   return (
     <div className="bg-gray-800/60 rounded-2xl p-4 space-y-3">
       {/* Exercise name */}
-      <button onClick={openVideo} className="exercise-name text-left text-base leading-snug w-full">
+      <button
+        onClick={openVideo}
+        className="exercise-name text-left text-base leading-snug w-full transition-all duration-200 hover:text-brand-300"
+        style={{ textShadow: '0 0 12px rgba(34,197,94,0.5)' }}
+      >
         {exercise.name}
       </button>
 
