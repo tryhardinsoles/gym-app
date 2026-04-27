@@ -45,6 +45,16 @@ router.get('/has-pending', requireAuth, async (req, res) => {
   res.json({ hasPending: !!routine });
 });
 
+// Historial de rutinas completadas del alumno
+router.get('/history', requireAuth, async (req, res) => {
+  const routines = await prisma.routine.findMany({
+    where: { userId: req.user.id, completedAt: { not: null } },
+    orderBy: [{ mes: 'asc' }, { order: 'asc' }],
+    select: { id: true, name: true, mes: true, completedAt: true }
+  });
+  res.json(routines);
+});
+
 // Actualizar peso o repeticiones de un ejercicio (verifica que pertenezca al alumno)
 router.patch('/exercises/:id', requireAuth, async (req, res) => {
   const { weight, repetitions } = req.body;

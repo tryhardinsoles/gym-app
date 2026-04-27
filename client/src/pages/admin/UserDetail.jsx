@@ -82,8 +82,8 @@ export default function UserDetail() {
   return (
     <div className="min-h-screen p-4 max-w-2xl mx-auto">
       <div className="flex items-center gap-3 pt-6 mb-8">
-        <button onClick={() => navigate('/admin/dashboard')} className="text-gray-400 hover:text-white transition-colors">
-          Volver
+        <button onClick={() => navigate('/admin/dashboard')} className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
+          ← Volver
         </button>
         <div>
           <h1 className="text-2xl font-black text-white">{username}</h1>
@@ -147,7 +147,13 @@ export default function UserDetail() {
                 Mes {mes}
               </h2>
               <div className="space-y-3">
-                {groupedByMes[mes].map((r) => (
+                {groupedByMes[mes]
+                  .slice()
+                  .sort((a, b) => {
+                    if (!!a.completedAt !== !!b.completedAt) return a.completedAt ? 1 : -1;
+                    return a.order - b.order;
+                  })
+                  .map((r) => (
                   <div key={r.id} className="card">
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div>

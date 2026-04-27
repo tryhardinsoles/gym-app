@@ -15,15 +15,18 @@ export default function Home() {
   const [saved, setSaved] = useState(false);
   const [lastCompleted, setLastCompleted] = useState(null);
   const [hasPending, setHasPending] = useState(null);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       axios.get('/api/workouts/last-completed'),
-      axios.get('/api/routines/has-pending')
-    ]).then(([lastRes, pendingRes]) => {
+      axios.get('/api/routines/has-pending'),
+      axios.get('/api/routines/history'),
+    ]).then(([lastRes, pendingRes, historyRes]) => {
       setLastCompleted(lastRes.data?.completedAt ? new Date(lastRes.data.completedAt) : null);
       setHasPending(pendingRes.data.hasPending);
+      setHistory(historyRes.data || []);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -39,6 +42,19 @@ export default function Home() {
 
   const quote = useMemo(() => getRandomQuote(), []);
 
+  const historyByMes = useMemo(() => {
+    return history.reduce((acc, r) => {
+      const mes = r.mes ?? 1;
+      if (!acc[mes]) acc[mes] = [];
+      acc[mes].push(r);
+      return acc;
+    }, {});
+  }, [history]);
+  const historyMesNumbers = useMemo(
+    () => Object.keys(historyByMes).map(Number).sort((a, b) => a - b),
+    [historyByMes]
+  );
+
   const handleWellbeing = async (score) => {
     setWellbeing(score);
     await axios.post('/api/wellbeing', { score });
@@ -51,23 +67,56 @@ export default function Home() {
     </div>
   );
 
-  // Sin rutinas pendientes → mostrar cita motivacional famosa
+  const HistorySection = () => {
+    if (history.length === 0) return null;
+    return (
+      <div className="mt-8 pb-10">
+        <h2 className="text-lg font-black text-white mb-4">
+          Historial — {history.length} {history.length === 1 ? 'rutina' : 'rutinas'} completadas
+        </h2>
+        {historyMesNumbers.map(mes => (
+          <div key={mes} className="mb-5">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">
+              Mes {mes}
+            </p>
+            <div className="space-y-2">
+              {historyByMes[mes].map(r => (
+                <div key={r.id} className="card flex items-center justify-between py-3 px-4">
+                  <p className="font-bold text-white text-sm">{r.name}</p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-gray-500">
+                      {new Date(r.completedAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                    </span>
+                    <span className="bg-brand-500/20 text-brand-400 text-xs font-bold px-2 py-0.5 rounded-full">
+                      Completada
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Sin rutinas pendientes → mostrar cita motivacional + historial
   if (!hasPending) return (
-    <div className="min-h-screen p-4 max-w-lg mx-auto flex flex-col">
+    <div className="min-h-screen p-4 max-w-lg mx-auto">
       <div className="flex justify-between items-center pt-6 pb-2">
         <span className="text-gray-500 text-sm font-medium">GymApp</span>
-        <button onClick={logout} className="text-gray-500 hover:text-gray-300 text-sm transition-colors">
+        <button onClick={logout} className="bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
           Salir
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center py-10 gap-8">
+      <div className="flex flex-col items-center py-10 gap-8">
         <div className="text-center">
           <p className="text-2xl font-black text-white">Hola, {user?.username}</p>
           <p className="text-gray-400 mt-2">No tenés rutinas pendientes por ahora.</p>
         </div>
 
-        <div className="card text-center max-w-sm mx-auto">
+        <div className="card text-center w-full">
           <blockquote className="text-white text-lg font-semibold leading-snug mb-4">
             "{quote.text}"
           </blockquote>
@@ -75,9 +124,11 @@ export default function Home() {
         </div>
 
         <p className="text-gray-600 text-sm text-center px-4">
-          Tu profe va a cargarte nuevas rutinas pronto. ¡Seguí entrenando!
+          Tu profe va a cargarte nuevas rutinas pronto.
         </p>
       </div>
+
+      <HistorySection />
     </div>
   );
 
@@ -86,7 +137,7 @@ export default function Home() {
       {/* Header */}
       <div className="flex justify-between items-center pt-6 pb-2">
         <span className="text-gray-500 text-sm font-medium">GymApp</span>
-        <button onClick={logout} className="text-gray-500 hover:text-gray-300 text-sm transition-colors">
+        <button onClick={logout} className="bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
           Salir
         </button>
       </div>
@@ -115,7 +166,7 @@ export default function Home() {
       </div>
 
       {/* Start button */}
-      <div className="mt-6 pb-10">
+      <div className="mt-6">
         <button
           className="btn-primary text-xl py-5"
           onClick={() => navigate('/routine')}
@@ -123,6 +174,8 @@ export default function Home() {
           Comenzar Rutina
         </button>
       </div>
+
+      <HistorySection />
     </div>
   );
 }
