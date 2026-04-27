@@ -91,12 +91,18 @@ export default function UserDetail() {
         </div>
       </div>
 
-      <div className="flex gap-3 mb-2">
+      <div className="flex gap-3 mb-2 flex-wrap">
         <button
           className="btn-primary flex-1 py-3 text-base"
           onClick={() => navigate(`/admin/users/${userId}/routines/new`)}
         >
           + Agregar rutina
+        </button>
+        <button
+          className="bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 font-bold px-5 py-3 rounded-2xl transition-colors text-base"
+          onClick={() => navigate(`/admin/users/${userId}/generate`)}
+        >
+          Generar
         </button>
         <button
           className="bg-gray-800 text-gray-300 hover:bg-gray-700 font-bold px-5 py-3 rounded-2xl transition-colors text-base"

@@ -346,5 +346,200 @@ router.get('/users/:userId/stats', requireAdmin, async (req, res) => {
   res.json(result);
 });
 
+// Generar 12 rutinas automáticamente a partir de un CSV de ejercicios
+router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
+  const { exercisesCSV, studentLevel, canDoImpact, routineType } = req.body;
+  if (!exercisesCSV) return res.status(400).json({ error: 'Falta el CSV de ejercicios' });
+
+  const lvl = Number(studentLevel) || 2;
+
+  function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (const ch of line) {
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+      else { current += ch; }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  const rawLines = exercisesCSV.trim().replace(/\r/g, '').split('\n');
+  const headers = parseCSVLine(rawLines[0]).map(h => h.toLowerCase());
+  const colOf = (...names) => {
+    for (const name of names) {
+      const i = headers.findIndex(h => h.includes(name));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const nameCol  = colOf('nombre') >= 0 ? colOf('nombre') : 1;
+  const urlCol   = colOf('hiperv') >= 0 ? colOf('hiperv') : 2;
+  const catCol   = colOf('categ')  >= 0 ? colOf('categ')  : 3;
+  const diffCol  = colOf('dific')  >= 0 ? colOf('dific')  : 4;
+  const impactCol = colOf('impac') >= 0 ? colOf('impac')  : 6;
+
+  const allExercises = rawLines.slice(1)
+    .map(line => parseCSVLine(line))
+    .filter(v => v.length > 3 && v[nameCol]?.trim())
+    .map(v => ({
+      nombre:    v[nameCol].trim(),
+      url:       v[urlCol]?.trim() || '',
+      categoria: v[catCol]?.trim() || '',
+      dificultad: parseInt(v[diffCol]) || 0,
+      impacto:   v[impactCol]?.trim().toLowerCase() === 'si',
+    }))
+    .filter(ex => ex.nombre && ex.categoria);
+
+  if (allExercises.length === 0)
+    return res.status(400).json({ error: 'No se encontraron ejercicios válidos en el CSV' });
+
+  const pool = canDoImpact ? allExercises : allExercises.filter(ex => !ex.impacto);
+
+  const getPhase = (day) => {
+    if (day <= 3)  return { exPerSection: 3, series: 3, repMod: 1.0 };
+    if (day <= 6)  return { exPerSection: 4, series: 3, repMod: 1.0 };
+    if (day <= 9)  return { exPerSection: 4, series: 3, repMod: 1.1 };
+    return             { exPerSection: 4, series: 4, repMod: 0.9 };
+  };
+
+  const calcReps = (exDiff, mod) => {
+    let base;
+    const diff = exDiff - lvl;
+    if (diff >= 1)             base = 6;   // ejercicio más difícil → menos reps
+    else if (lvl >= 3 && diff <= -2) base = 15; // mucho más fácil para alumno avanzado
+    else                       base = 10;  // mismo nivel
+    return String(Math.round(base * mod));
+  };
+
+  // Selecciona hasta `count` ejercicios de una categoría respetando dificultad y ventana de días
+  const pickFrom = (category, count, forbidden, usedToday) => {
+    const cat = category.toLowerCase();
+    const candidates = pool
+      .filter(ex =>
+        ex.categoria.toLowerCase() === cat &&
+        !forbidden.has(ex.nombre) &&
+        !usedToday.has(ex.nombre)
+      )
+      .sort((a, b) => Math.abs(a.dificultad - lvl) - Math.abs(b.dificultad - lvl));
+
+    const selected = [];
+    let higherUsed = false;
+    for (const ex of candidates) {
+      if (selected.length >= count) break;
+      const diff = ex.dificultad - lvl;
+      if (lvl <= 3) {
+        if (diff > 1) continue;               // demasiado difícil
+        if (diff === 1 && higherUsed) continue; // ya usamos 1 ejercicio más difícil en este bloque
+        if (diff === 1) higherUsed = true;
+      }
+      selected.push(ex);
+      usedToday.add(ex.nombre);
+    }
+    return selected;
+  };
+
+  const makeSection = (name, exercises, series, repMod) => ({
+    name,
+    exercises: exercises.map(ex => ({
+      name: ex.nombre,
+      youtubeUrl: ex.url || null,
+      repetitions: calcReps(ex.dificultad, repMod),
+      series,
+    }))
+  });
+
+  const SECTION_NAMES = ['Entrada en calor', 'Bloque 1', 'Bloque 2', 'Bloque 3', 'Bloque 4'];
+  const CIRCUIT_CATS_3 = ['Tren inferior', 'Tren Superior', 'Zona media'];
+  const CIRCUIT_CATS_4 = ['Tren inferior', 'Tren Superior', 'Zona media', 'Aerobico'];
+
+  const history = {};
+  const generatedRoutines = [];
+
+  for (let day = 1; day <= 12; day++) {
+    const { exPerSection, series, repMod } = getPhase(day);
+    const forbidden = new Set([...(history[day - 1] || []), ...(history[day - 2] || [])]);
+    const usedToday = new Set();
+    const sections = [];
+
+    if (routineType === 'localizada') {
+      sections.push(makeSection('Entrada en calor',
+        pickFrom('Zona media', exPerSection, forbidden, usedToday), series, repMod));
+
+      sections.push(makeSection('Bloque 1',
+        pickFrom('Tren inferior', exPerSection, forbidden, usedToday), series, repMod));
+
+      sections.push(makeSection('Bloque 2',
+        pickFrom('Tren Superior', exPerSection, forbidden, usedToday), series, repMod));
+
+      const b3InfCount = exPerSection >= 4 ? 2 : 1;
+      const b3SupCount = exPerSection >= 4 ? 2 : 1;
+      const b3 = [
+        ...pickFrom('Tren inferior', b3InfCount, forbidden, usedToday),
+        ...pickFrom('Tren Superior', b3SupCount, forbidden, usedToday),
+      ];
+      sections.push(makeSection('Bloque 3', b3, series, repMod));
+
+      sections.push(makeSection('Bloque 4',
+        pickFrom('Aerobico', 1, forbidden, usedToday), series, repMod));
+
+    } else { // circuito
+      const cats = exPerSection >= 4 ? CIRCUIT_CATS_4 : CIRCUIT_CATS_3;
+      for (const sName of SECTION_NAMES) {
+        const secEx = [];
+        for (const cat of cats) {
+          secEx.push(...pickFrom(cat, 1, forbidden, usedToday));
+        }
+        sections.push(makeSection(sName, secEx, series, repMod));
+      }
+    }
+
+    history[day] = usedToday;
+    generatedRoutines.push({ day, sections });
+  }
+
+  // Guardar en la base de datos
+  const userId = req.params.id;
+  const [lastMesRow, lastOrderRow] = await Promise.all([
+    prisma.routine.findFirst({ where: { userId }, orderBy: { mes: 'desc' }, select: { mes: true } }),
+    prisma.routine.findFirst({ where: { userId }, orderBy: { order: 'desc' }, select: { order: true } }),
+  ]);
+  const nextMes   = (lastMesRow?.mes   ?? 0) + 1;
+  let   nextOrder = (lastOrderRow?.order ?? 0) + 1;
+
+  for (const rt of generatedRoutines) {
+    const sectionsData = rt.sections
+      .filter(s => s.exercises.length > 0)
+      .map((sec, si) => ({
+        name: sec.name,
+        order: si,
+        exercises: {
+          create: sec.exercises.map((ex, ei) => ({
+            name: ex.name,
+            repetitions: ex.repetitions,
+            weight: null,
+            series: ex.series,
+            youtubeUrl: ex.youtubeUrl,
+            order: ei,
+          }))
+        }
+      }));
+
+    await prisma.routine.create({
+      data: {
+        userId,
+        name: `Dia ${rt.day}`,
+        order: nextOrder++,
+        mes: nextMes,
+        sections: { create: sectionsData },
+      }
+    });
+  }
+
+  res.json({ created: generatedRoutines.length, mes: nextMes });
+});
+
 export default router;
 
