@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import RoutineSection from '../components/RoutineSection.jsx';
 import ConfettiScreen from '../components/ConfettiScreen.jsx';
+import WellbeingScale from '../components/WellbeingScale.jsx';
 
 export default function Routine({ adminPlay = false }) {
   const { user } = useAuth();
@@ -17,6 +18,8 @@ export default function Routine({ adminPlay = false }) {
   const [loading, setLoading] = useState(true);
   const [showConfetti, setShowConfetti] = useState(false);
   const [error, setError] = useState('');
+  const [wellbeingDone, setWellbeingDone] = useState(false);
+  const [wellbeingScore, setWellbeingScore] = useState(null);
 
   useEffect(() => {
     const fetchRoutine = async () => {
@@ -56,6 +59,13 @@ export default function Routine({ adminPlay = false }) {
     }
   }, [sessionId, adminPlay]);
 
+  const handleExerciseUpdate = useCallback(async (exerciseId, field, value) => {
+    const url = adminPlay
+      ? `/api/admin/exercises/${exerciseId}`
+      : `/api/routines/exercises/${exerciseId}`;
+    try { await axios.patch(url, { [field]: value }); } catch {}
+  }, [adminPlay]);
+
   const handleNext = async () => {
     if (!sectionComplete) return;
     if (isLastSection) {
@@ -69,8 +79,45 @@ export default function Routine({ adminPlay = false }) {
     }
   };
 
+  const handleSaveWellbeing = async () => {
+    if (wellbeingScore && routineId) {
+      try {
+        await axios.post(`/api/admin/routines/${routineId}/wellbeing`, { score: wellbeingScore });
+      } catch {} // no bloquear si falla
+    }
+    setWellbeingDone(true);
+  };
+
+  if (adminPlay && !wellbeingDone && !loading && !error && routine) return (
+    <div className="min-h-screen p-4 max-w-lg mx-auto flex flex-col justify-center gap-6">
+      <div className="card">
+        <h2 className="text-xl font-black text-white text-center mb-1">¿Cómo se siente hoy?</h2>
+        <p className="text-gray-400 text-sm text-center mb-6">{routine.name}</p>
+        <WellbeingScale selected={wellbeingScore} onSelect={setWellbeingScore} />
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={() => setWellbeingDone(true)}
+          className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-5 py-4 rounded-2xl transition-colors"
+        >
+          Omitir
+        </button>
+        <button
+          onClick={handleSaveWellbeing}
+          className={`btn-primary flex-1 py-4 transition-opacity ${!wellbeingScore ? 'opacity-40 cursor-not-allowed' : ''}`}
+          disabled={!wellbeingScore}
+        >
+          Guardar y empezar
+        </button>
+      </div>
+    </div>
+  );
+
   if (showConfetti) return (
-    <ConfettiScreen onDone={() => navigate(adminPlay ? `/admin/users/${userId}` : '/')} />
+    <ConfettiScreen
+      onDone={() => navigate(adminPlay ? `/admin/users/${userId}` : '/')}
+      onTrainNow={!adminPlay ? () => navigate('/routine') : undefined}
+    />
   );
 
   if (loading) return (
@@ -95,7 +142,7 @@ export default function Routine({ adminPlay = false }) {
       <div className="flex items-center gap-3 pt-6 mb-6">
         <button
           onClick={() => navigate(adminPlay ? `/admin/users/${userId}` : '/')}
-          className="text-gray-400 hover:text-white transition-colors"
+          className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors"
         >
           ← Volver
         </button>
@@ -132,6 +179,7 @@ export default function Routine({ adminPlay = false }) {
           section={currentSection}
           feedbacks={feedbacks}
           onFeedback={handleFeedback}
+          onExerciseUpdate={handleExerciseUpdate}
         />
       )}
 

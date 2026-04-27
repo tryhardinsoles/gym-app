@@ -256,6 +256,30 @@ router.patch('/routines/:id/reset', requireAdmin, async (req, res) => {
   res.json(routine);
 });
 
+// Actualizar peso o repeticiones de un ejercicio
+router.patch('/exercises/:id', requireAdmin, async (req, res) => {
+  const { weight, repetitions } = req.body;
+  const data = {};
+  if (weight !== undefined) data.weight = weight || null;
+  if (repetitions !== undefined && repetitions !== '') data.repetitions = repetitions;
+  await prisma.exercise.update({ where: { id: req.params.id }, data });
+  res.json({ ok: true });
+});
+
+// Guardar bienestar del alumno desde admin
+router.post('/routines/:id/wellbeing', requireAdmin, async (req, res) => {
+  const { score } = req.body;
+  const routine = await prisma.routine.findUnique({
+    where: { id: req.params.id },
+    select: { userId: true }
+  });
+  if (!routine) return res.status(404).json({ error: 'Rutina no encontrada' });
+  await prisma.wellbeingLog.create({
+    data: { userId: routine.userId, score: Number(score) }
+  });
+  res.json({ ok: true });
+});
+
 // Obtener datos de una rutina para el modo "ver como alumno"
 router.get('/routines/:id/play-data', requireAdmin, async (req, res) => {
   const routine = await prisma.routine.findUnique({
@@ -348,7 +372,7 @@ router.get('/users/:userId/stats', requireAdmin, async (req, res) => {
 
 // Generar 12 rutinas automáticamente a partir de un CSV de ejercicios
 router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
-  const { exercisesCSV, studentLevel, canDoImpact, routineType } = req.body;
+  const { exercisesCSV, studentLevel, canDoImpact, routineType, dayPatterns } = req.body;
   if (!exercisesCSV) return res.status(400).json({ error: 'Falta el CSV de ejercicios' });
 
   const lvl = Number(studentLevel) || 2;
@@ -380,6 +404,8 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
   const catCol   = colOf('categ')  >= 0 ? colOf('categ')  : 3;
   const diffCol  = colOf('dific')  >= 0 ? colOf('dific')  : 4;
   const impactCol = colOf('impac') >= 0 ? colOf('impac')  : 6;
+  const patCol    = colOf('patron') >= 0 ? colOf('patron') : -1;
+  const hasPatronColumn = patCol >= 0;
 
   const allExercises = rawLines.slice(1)
     .map(line => parseCSVLine(line))
@@ -390,6 +416,7 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
       categoria: v[catCol]?.trim() || '',
       dificultad: parseInt(v[diffCol]) || 0,
       impacto:   v[impactCol]?.trim().toLowerCase() === 'si',
+      patron:    patCol >= 0 ? (v[patCol]?.trim() || '') : '',
     }))
     .filter(ex => ex.nombre && ex.categoria);
 
@@ -414,14 +441,22 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
     return String(Math.round(base * mod));
   };
 
+  const getAerobicTime = (day) => {
+    if (day <= 3) return '6 minutos';
+    if (day <= 6) return '7 minutos';
+    if (day <= 9) return '8 minutos';
+    return '10 minutos';
+  };
+
   // Selecciona hasta `count` ejercicios de una categoría respetando dificultad y ventana de días
-  const pickFrom = (category, count, forbidden, usedToday) => {
+  const pickFrom = (category, count, forbidden, usedToday, patternFilter = null) => {
     const cat = category.toLowerCase();
     const candidates = pool
       .filter(ex =>
         ex.categoria.toLowerCase() === cat &&
         !forbidden.has(ex.nombre) &&
-        !usedToday.has(ex.nombre)
+        !usedToday.has(ex.nombre) &&
+        (!patternFilter || patternFilter(ex))
       )
       .sort((a, b) => Math.abs(a.dificultad - lvl) - Math.abs(b.dificultad - lvl));
 
@@ -441,19 +476,43 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
     return selected;
   };
 
-  const makeSection = (name, exercises, series, repMod) => ({
-    name,
-    exercises: exercises.map(ex => ({
-      name: ex.nombre,
-      youtubeUrl: ex.url || null,
-      repetitions: calcReps(ex.dificultad, repMod),
-      series,
-    }))
-  });
+  const EVEN_POOL = [8, 10, 12, 14, 16, 18];
+  const roundToEven = (n) => Math.round(n / 2) * 2;
+  const makeSection = (name, exercises, series, repMod) => {
+    const shuffled = [...EVEN_POOL].sort(() => Math.random() - 0.5);
+    return {
+      name,
+      exercises: exercises.map((ex, i) => ({
+        name: ex.nombre,
+        youtubeUrl: ex.url || null,
+        repetitions: String(Math.max(4, roundToEven(shuffled[i % EVEN_POOL.length] * repMod))),
+        series,
+      }))
+    };
+  };
 
   const SECTION_NAMES = ['Entrada en calor', 'Bloque 1', 'Bloque 2', 'Bloque 3', 'Bloque 4'];
   const CIRCUIT_CATS_3 = ['Tren inferior', 'Tren Superior', 'Zona media'];
   const CIRCUIT_CATS_4 = ['Tren inferior', 'Tren Superior', 'Zona media', 'Aerobico'];
+
+  const makePatternFilter = (pattern) => {
+    if (!hasPatronColumn || pattern === 'libre') return null;
+    if (pattern === 'empuje') {
+      return (ex) => ex.patron && (
+        ex.patron.toLowerCase().includes('pecho') ||
+        ex.patron.toLowerCase().includes('tricep') ||
+        ex.patron.toLowerCase().includes('empuje')
+      );
+    }
+    if (pattern === 'traccion') {
+      return (ex) => ex.patron && (
+        ex.patron.toLowerCase().includes('espalda') ||
+        ex.patron.toLowerCase().includes('traccion') ||
+        ex.patron.toLowerCase().includes('tracción')
+      );
+    }
+    return null;
+  };
 
   const history = {};
   const generatedRoutines = [];
@@ -463,6 +522,8 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
     const forbidden = new Set([...(history[day - 1] || []), ...(history[day - 2] || [])]);
     const usedToday = new Set();
     const sections = [];
+    const dayPattern = Array.isArray(dayPatterns) ? (dayPatterns[day - 1] ?? 'libre') : 'libre';
+    const patternFilter = makePatternFilter(dayPattern);
 
     if (routineType === 'localizada') {
       sections.push(makeSection('Entrada en calor',
@@ -472,18 +533,20 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
         pickFrom('Tren inferior', exPerSection, forbidden, usedToday), series, repMod));
 
       sections.push(makeSection('Bloque 2',
-        pickFrom('Tren Superior', exPerSection, forbidden, usedToday), series, repMod));
+        pickFrom('Tren Superior', exPerSection, forbidden, usedToday, patternFilter), series, repMod));
 
       const b3InfCount = exPerSection >= 4 ? 2 : 1;
       const b3SupCount = exPerSection >= 4 ? 2 : 1;
       const b3 = [
         ...pickFrom('Tren inferior', b3InfCount, forbidden, usedToday),
-        ...pickFrom('Tren Superior', b3SupCount, forbidden, usedToday),
+        ...pickFrom('Tren Superior', b3SupCount, forbidden, usedToday, patternFilter),
       ];
       sections.push(makeSection('Bloque 3', b3, series, repMod));
 
-      sections.push(makeSection('Bloque 4',
-        pickFrom('Aerobico', 1, forbidden, usedToday), series, repMod));
+      const aerobicEx = pickFrom('Aerobico', 1, forbidden, usedToday);
+      if (aerobicEx.length > 0) {
+        sections.push({ name: 'Bloque 4', exercises: [{ name: aerobicEx[0].nombre, youtubeUrl: aerobicEx[0].url || null, repetitions: getAerobicTime(day), series: 1 }] });
+      }
 
     } else { // circuito
       const cats = exPerSection >= 4 ? CIRCUIT_CATS_4 : CIRCUIT_CATS_3;

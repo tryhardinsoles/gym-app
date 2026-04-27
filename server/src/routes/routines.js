@@ -45,4 +45,21 @@ router.get('/has-pending', requireAuth, async (req, res) => {
   res.json({ hasPending: !!routine });
 });
 
+// Actualizar peso o repeticiones de un ejercicio (verifica que pertenezca al alumno)
+router.patch('/exercises/:id', requireAuth, async (req, res) => {
+  const { weight, repetitions } = req.body;
+  const exercise = await prisma.exercise.findFirst({
+    where: { id: req.params.id },
+    include: { section: { include: { routine: { select: { userId: true } } } } }
+  });
+  if (!exercise || exercise.section.routine.userId !== req.user.id)
+    return res.status(403).json({ error: 'No autorizado' });
+
+  const data = {};
+  if (weight !== undefined) data.weight = weight || null;
+  if (repetitions !== undefined && repetitions !== '') data.repetitions = repetitions;
+  await prisma.exercise.update({ where: { id: req.params.id }, data });
+  res.json({ ok: true });
+});
+
 export default router;

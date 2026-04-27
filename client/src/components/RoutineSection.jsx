@@ -8,7 +8,7 @@ const SECTION_ICONS = {
   'Bloque 4': '4️⃣',
 };
 
-export default function RoutineSection({ section, feedbacks, onFeedback }) {
+export default function RoutineSection({ section, feedbacks, onFeedback, onExerciseUpdate }) {
   const icon = SECTION_ICONS[section.name] || '💪';
   const total = section.exercises.length;
   const done = section.exercises.filter(ex => feedbacks[ex.id]).length;
@@ -35,6 +35,7 @@ export default function RoutineSection({ section, feedbacks, onFeedback }) {
           exercise={ex}
           feedback={feedbacks[ex.id]}
           onFeedback={onFeedback}
+          onExerciseUpdate={onExerciseUpdate}
         />
       ))}
     </div>
