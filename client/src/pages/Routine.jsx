@@ -54,10 +54,10 @@ export default function Routine({ adminPlay = false }) {
 
   const handleFeedback = useCallback(async (exerciseId, value) => {
     setFeedbacks(prev => ({ ...prev, [exerciseId]: value }));
-    if (!adminPlay && sessionId) {
+    if (sessionId) {
       await axios.post(`/api/workouts/${sessionId}/feedback`, { exerciseId, feedback: value });
     }
-  }, [sessionId, adminPlay]);
+  }, [sessionId]);
 
   const handleExerciseUpdate = useCallback(async (exerciseId, field, value) => {
     const url = adminPlay

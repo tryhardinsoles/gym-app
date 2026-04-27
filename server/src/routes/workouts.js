@@ -21,7 +21,7 @@ router.post('/:sessionId/complete', requireAuth, async (req, res) => {
   const session = await prisma.workoutSession.findUnique({
     where: { id: req.params.sessionId }
   });
-  if (!session || session.userId !== req.user.id)
+  if (!session || (session.userId !== req.user.id && !req.user.isAdmin))
     return res.status(403).json({ error: 'No autorizado' });
 
   const now = new Date();

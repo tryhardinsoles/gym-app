@@ -404,7 +404,7 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
   const catCol   = colOf('categ')  >= 0 ? colOf('categ')  : 3;
   const diffCol  = colOf('dific')  >= 0 ? colOf('dific')  : 4;
   const impactCol = colOf('impac') >= 0 ? colOf('impac')  : 6;
-  const patCol    = colOf('patron') >= 0 ? colOf('patron') : -1;
+  const patCol    = colOf('patron', 'patr');   // 'patr' captura 'Patrón' con tilde
   const hasPatronColumn = patCol >= 0;
 
   const allExercises = rawLines.slice(1)
@@ -472,17 +472,18 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
 
   const EVEN_POOL = [8, 10, 12];
   const roundToEven = (n) => Math.min(12, Math.max(8, Math.round(n / 2) * 2));
-  const makeSection = (name, exercises, series, repMod) => {
+  const makeSection = (name, exercises, series, repMod, expectedCount = 0) => {
     const shuffled = [...EVEN_POOL].sort(() => Math.random() - 0.5);
-    return {
-      name,
-      exercises: exercises.map((ex, i) => ({
-        name: ex.nombre,
-        youtubeUrl: ex.url || null,
-        repetitions: String(roundToEven(shuffled[i % EVEN_POOL.length] * repMod)),
-        series,
-      }))
-    };
+    const result = exercises.map((ex, i) => ({
+      name: ex.nombre,
+      youtubeUrl: ex.url || null,
+      repetitions: String(roundToEven(shuffled[i % EVEN_POOL.length] * repMod)),
+      series,
+    }));
+    while (result.length < expectedCount) {
+      result.push({ name: '', youtubeUrl: null, repetitions: '—', series });
+    }
+    return { name, exercises: result };
   };
 
   const SECTION_NAMES = ['Entrada en calor', 'Bloque 1', 'Bloque 2', 'Bloque 3', 'Bloque 4'];
@@ -494,13 +495,13 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
     if (pattern === 'empuje') {
       return (ex) => {
         const p = ex.patron.toLowerCase();
-        return p.includes('empuje') || p.includes('tricep') || p.includes('pecho');
+        return p.includes('empuje') || p.includes('tricep') || p.includes('pecho') || p.includes('cualquier');
       };
     }
     if (pattern === 'traccion') {
       return (ex) => {
         const p = ex.patron.toLowerCase();
-        return p.includes('traccion') || p.includes('tracción') || p.includes('espalda');
+        return p.includes('traccion') || p.includes('tracción') || p.includes('espalda') || p.includes('cualquier');
       };
     }
     return null;
@@ -519,13 +520,13 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
 
     if (routineType === 'localizada') {
       sections.push(makeSection('Entrada en calor',
-        pickFrom('Zona media', exPerSection, forbidden, usedToday), series, repMod));
+        pickFrom('Zona media', exPerSection, forbidden, usedToday), series, repMod, exPerSection));
 
       sections.push(makeSection('Bloque 1',
-        pickFrom('Tren inferior', exPerSection, forbidden, usedToday), series, repMod));
+        pickFrom('Tren inferior', exPerSection, forbidden, usedToday), series, repMod, exPerSection));
 
       sections.push(makeSection('Bloque 2',
-        pickFrom('Tren Superior', exPerSection, forbidden, usedToday, patternFilter), series, repMod));
+        pickFrom('Tren Superior', exPerSection, forbidden, usedToday, patternFilter), series, repMod, exPerSection));
 
       const b3InfCount = exPerSection >= 4 ? 2 : 1;
       const b3SupCount = exPerSection >= 4 ? 2 : 1;
@@ -533,7 +534,7 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
         ...pickFrom('Tren inferior', b3InfCount, forbidden, usedToday),
         ...pickFrom('Tren Superior', b3SupCount, forbidden, usedToday, patternFilter),
       ];
-      sections.push(makeSection('Bloque 3', b3, series, repMod));
+      sections.push(makeSection('Bloque 3', b3, series, repMod, b3InfCount + b3SupCount));
 
       // Bloque 4 se deja vacío para completar manualmente
 
@@ -544,7 +545,7 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
         for (const cat of cats) {
           secEx.push(...pickFrom(cat, 1, forbidden, usedToday));
         }
-        sections.push(makeSection(sName, secEx, series, repMod));
+        sections.push(makeSection(sName, secEx, series, repMod, cats.length));
       }
     }
 
