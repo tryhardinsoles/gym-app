@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAdmin } from '../middleware/admin.js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -420,8 +420,8 @@ router.get('/users/:userId/stats', requireAdmin, async (req, res) => {
 router.post('/users/:id/generate-routines-ai', requireAdmin, async (req, res) => {
   const { exercisesCSV, studentLevel, canDoImpact, routineType, dayPatterns, sports } = req.body;
   if (!exercisesCSV) return res.status(400).json({ error: 'Falta el CSV de ejercicios' });
-  if (!process.env.GEMINI_API_KEY)
-    return res.status(400).json({ error: 'GEMINI_API_KEY no configurada en el servidor' });
+  if (!process.env.GROQ_API_KEY)
+    return res.status(400).json({ error: 'GROQ_API_KEY no configurada en el servidor' });
 
   function parseCSVLine(line) {
     const result = [];
@@ -541,14 +541,21 @@ Responde ÚNICAMENTE con JSON válido (sin texto antes ni después, sin bloques 
 
   let routinesData;
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      systemInstruction: 'Eres un entrenador personal experto en planificación de rutinas. Generás rutinas usando ÚNICAMENTE los ejercicios del pool provisto. Respondés SOLO con JSON válido, sin texto adicional ni markdown.',
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 8000,
+      temperature: 0.4,
+      messages: [
+        {
+          role: 'system',
+          content: 'Eres un entrenador personal experto en planificación de rutinas. Generás rutinas usando ÚNICAMENTE los ejercicios del pool provisto. Respondés SOLO con JSON válido, sin texto adicional ni markdown.'
+        },
+        { role: 'user', content: prompt }
+      ]
     });
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
+    const text = completion.choices[0].message.content.trim();
     const jsonText = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
     routinesData = JSON.parse(jsonText);
   } catch (err) {
