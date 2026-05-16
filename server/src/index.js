@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -27,7 +26,6 @@ app.use('/api/routines', routineRoutes);
 app.use('/api/workouts', workoutRoutes);
 app.use('/api/wellbeing', wellbeingRoutes);
 
-// En producción, servir el build del cliente
 if (isProd) {
   const clientDist = path.join(__dirname, '../../client/dist');
   app.use(express.static(clientDist));
