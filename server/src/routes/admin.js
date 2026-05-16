@@ -543,7 +543,7 @@ Responde ÚNICAMENTE con JSON válido (sin texto antes ni después, sin bloques 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash',
       systemInstruction: 'Eres un entrenador personal experto en planificación de rutinas. Generás rutinas usando ÚNICAMENTE los ejercicios del pool provisto. Respondés SOLO con JSON válido, sin texto adicional ni markdown.',
     });
 
