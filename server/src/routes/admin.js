@@ -572,8 +572,10 @@ JSON EXACTO sin texto extra (días ${startDay} al ${endDay}):
       });
 
       const text = completion.choices[0].message.content.trim();
-      const jsonText = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
-      const batchData = JSON.parse(jsonText);
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      if (start === -1 || end === -1) throw new Error(`Batch ${batch + 1}: la IA no devolvió JSON`);
+      const batchData = JSON.parse(text.slice(start, end + 1));
 
       if (!Array.isArray(batchData?.routines))
         throw new Error(`Batch ${batch + 1}: respuesta inválida de la IA`);
