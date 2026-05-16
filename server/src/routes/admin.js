@@ -475,85 +475,128 @@ router.post('/users/:id/generate-routines-ai', requireAdmin, async (req, res) =>
   const lvl = Number(studentLevel) || 2;
   const sportsText = sports?.length ? sports.join(', ') : 'ninguno';
 
-  // Pool compacto sin URLs (las recuperamos después por nombre)
+  // URLs para recuperar después (no se mandan a la IA)
   const urlByName = new Map(pool.map(ex => [ex.nombre, ex.url || null]));
+  const poolNames = new Set(pool.map(ex => ex.nombre));
 
-  // Limitar a 8 ejercicios por categoría más cercanos al nivel del alumno
+  // Pool filtrado por dificultad, 15 por categoría máximo
   const byCategory = {};
   for (const ex of pool.filter(e => e.dificultad <= lvl + 2)) {
     if (!byCategory[ex.categoria]) byCategory[ex.categoria] = [];
     byCategory[ex.categoria].push(ex);
   }
   const reducedPool = Object.values(byCategory).flatMap(exs =>
-    exs.sort((a, b) => Math.abs(a.dificultad - lvl) - Math.abs(b.dificultad - lvl)).slice(0, 8)
+    exs.sort((a, b) => Math.abs(a.dificultad - lvl) - Math.abs(b.dificultad - lvl)).slice(0, 15)
   );
-
   const poolText = reducedPool.map(ex =>
     `${ex.nombre}|${ex.categoria}|${ex.dificultad}${ex.patron ? `|${ex.patron}` : ''}`
   ).join('\n');
 
-  const patternsText = Array.isArray(dayPatterns)
-    ? dayPatterns.map((p, i) => `D${i + 1}:${p}`).join(' ')
-    : 'todos:libre';
-
   const sectionDesc = routineType === 'localizada'
-    ? `EC=Zona media, B1=Tren inferior, B2=Tren Superior(patrón), B3=TI+TS mix, B4=vacío`
+    ? `EC=Zona media, B1=Tren inferior, B2=Tren Superior(patrón), B3=TI+TS mix, B4=omitir`
     : `cada bloque: 1 ejercicio por categoría`;
 
-  const prompt = `Alumno: nivel ${lvl}/4, deportes: ${sportsText}, rutina: ${routineType}
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+  const buildPrompt = (startDay, endDay, avoidList) => {
+    const batchPatterns = Array.isArray(dayPatterns)
+      ? dayPatterns.slice(startDay - 1, endDay).map((p, i) => `D${startDay + i}:${p}`).join(' ')
+      : 'libre';
+
+    const getSpec = (d) => {
+      if (d <= 3)  return '3ej/3series/8-12reps';
+      if (d <= 6)  return '4ej/3series/8-12reps';
+      if (d <= 9)  return '4ej/3series/reps+10%';
+      return              '4ej/4series/reps-10%';
+    };
+    const daysSpec = Array.from({ length: endDay - startDay + 1 }, (_, i) => {
+      const d = startDay + i;
+      return `D${d}:${getSpec(d)}`;
+    }).join(' ');
+
+    const avoidText = avoidList.length > 0
+      ? `\nEvitar (usados antes): ${avoidList.slice(-30).join(', ')}`
+      : '';
+
+    return `Alumno: nivel ${lvl}/4, deportes:${sportsText}, rutina:${routineType}
 Secciones: ${sectionDesc}
-Patrones: ${patternsText}
-Progresión: D1-3: 3ej/3series; D4-6: 4ej/3series; D7-9: 4ej/3series reps+10%; D10-12: 4ej/4series reps-10%
-Reglas: solo ejercicios del pool(nombre exacto), dificultad≤${lvl + 2}, no repetir en días consecutivos, reps pares 8-12, complementar sin sobrecargar músculos del deporte.
+Patrones: ${batchPatterns}
+Especificación: ${daysSpec}
+Reglas: solo nombres exactos del pool, dificultad≤${lvl + 2}, no repetir ejercicio en días consecutivos, reps pares 8-12.${avoidText}
 
 POOL(nombre|cat|dif|patrón):
 ${poolText}
 
-JSON sin texto extra:
-{"routines":[{"day":1,"sections":[{"name":"Entrada en calor","exercises":[{"name":"nombre exacto","repetitions":"10","series":3}]}]}]}`;
+JSON EXACTO sin texto extra (días ${startDay} al ${endDay}):
+{"routines":[{"day":${startDay},"sections":[{"name":"Entrada en calor","exercises":[{"name":"nombre exacto","repetitions":"10","series":3}]}]}]}`;
+  };
 
-  let routinesData;
+  const validateAndEnrich = (routines) => {
+    for (const rt of routines) {
+      for (const sec of rt.sections || []) {
+        sec.exercises = (sec.exercises || []).filter(ex => {
+          if (!poolNames.has(ex.name)) {
+            console.warn(`Descartado (no en pool): "${ex.name}"`);
+            return false;
+          }
+          ex.youtubeUrl = urlByName.get(ex.name) || null;
+          return true;
+        });
+      }
+      rt.sections = (rt.sections || []).filter(s => s.exercises.length > 0);
+    }
+    return routines;
+  };
+
+  // 4 llamadas de 3 días cada una
+  const allRoutines = [];
+  const usedExercises = [];
+
   try {
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
-      max_tokens: 4000,
-      temperature: 0.4,
-      messages: [
-        {
-          role: 'system',
-          content: 'Eres un entrenador personal experto en planificación de rutinas. Generás rutinas usando ÚNICAMENTE los ejercicios del pool provisto. Respondés SOLO con JSON válido, sin texto adicional ni markdown.'
-        },
-        { role: 'user', content: prompt }
-      ]
-    });
+    for (let batch = 0; batch < 4; batch++) {
+      const startDay = batch * 3 + 1;
+      const endDay   = startDay + 2;
+      const prompt   = buildPrompt(startDay, endDay, usedExercises);
 
-    const text = completion.choices[0].message.content.trim();
-    const jsonText = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
-    routinesData = JSON.parse(jsonText);
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.1-8b-instant',
+        max_tokens: 1500,
+        temperature: 0.4,
+        messages: [
+          {
+            role: 'system',
+            content: 'Entrenador personal experto. Usás ÚNICAMENTE ejercicios del pool. Respondés SOLO con JSON válido sin markdown.'
+          },
+          { role: 'user', content: prompt }
+        ]
+      });
+
+      const text = completion.choices[0].message.content.trim();
+      const jsonText = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+      const batchData = JSON.parse(jsonText);
+
+      if (!Array.isArray(batchData?.routines))
+        throw new Error(`Batch ${batch + 1}: respuesta inválida de la IA`);
+
+      const validated = validateAndEnrich(batchData.routines);
+      allRoutines.push(...validated);
+
+      // Registrar ejercicios usados para evitar repetición en siguiente batch
+      for (const rt of validated) {
+        for (const sec of rt.sections || []) {
+          for (const ex of sec.exercises || []) {
+            usedExercises.push(ex.name);
+          }
+        }
+      }
+    }
   } catch (err) {
     console.error('Error IA:', err);
     return res.status(500).json({ error: `Error al generar con IA: ${err.message}` });
   }
 
-  if (!Array.isArray(routinesData?.routines) || routinesData.routines.length === 0)
+  if (allRoutines.length === 0)
     return res.status(500).json({ error: 'La IA no devolvió rutinas válidas' });
-
-  // Validar que los ejercicios existan en el pool y agregar URL
-  const poolNames = new Set(pool.map(ex => ex.nombre));
-  for (const rt of routinesData.routines) {
-    for (const sec of rt.sections || []) {
-      sec.exercises = (sec.exercises || []).filter(ex => {
-        if (!poolNames.has(ex.name)) {
-          console.warn(`Ejercicio no encontrado en pool, descartado: "${ex.name}"`);
-          return false;
-        }
-        ex.youtubeUrl = urlByName.get(ex.name) || null;
-        return true;
-      });
-    }
-    rt.sections = (rt.sections || []).filter(s => s.exercises.length > 0);
-  }
 
   // Guardar en la base de datos
   const userId = req.params.id;
@@ -564,7 +607,7 @@ JSON sin texto extra:
   const nextMes   = (lastMesRow?.mes   ?? 0) + 1;
   let   nextOrder = (lastOrderRow?.order ?? 0) + 1;
 
-  for (const rt of routinesData.routines) {
+  for (const rt of allRoutines) {
     if (!rt.sections?.length) continue;
     await prisma.routine.create({
       data: {
@@ -592,7 +635,7 @@ JSON sin texto extra:
     });
   }
 
-  res.json({ created: routinesData.routines.filter(r => r.sections?.length > 0).length, mes: nextMes });
+  res.json({ created: allRoutines.filter(r => r.sections?.length > 0).length, mes: nextMes });
 });
 
 // Generar 12 rutinas automáticamente a partir de un CSV de ejercicios
