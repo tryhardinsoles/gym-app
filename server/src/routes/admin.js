@@ -475,76 +475,38 @@ router.post('/users/:id/generate-routines-ai', requireAdmin, async (req, res) =>
   const lvl = Number(studentLevel) || 2;
   const sportsText = sports?.length ? sports.join(', ') : 'ninguno';
 
+  // Pool compacto sin URLs (las recuperamos después por nombre)
+  const urlByName = new Map(pool.map(ex => [ex.nombre, ex.url || null]));
   const poolText = pool.map(ex =>
-    `${ex.nombre}|${ex.categoria}|dif:${ex.dificultad}|impacto:${ex.impacto ? 'sí' : 'no'}${ex.patron ? `|patrón:${ex.patron}` : ''}${ex.url ? `|url:${ex.url}` : ''}`
+    `${ex.nombre}|${ex.categoria}|${ex.dificultad}${ex.patron ? `|${ex.patron}` : ''}`
   ).join('\n');
 
   const patternsText = Array.isArray(dayPatterns)
-    ? dayPatterns.map((p, i) => `  Día ${i + 1}: ${p}`).join('\n')
-    : '  Todos: libre';
+    ? dayPatterns.map((p, i) => `D${i + 1}:${p}`).join(' ')
+    : 'todos:libre';
 
   const sectionDesc = routineType === 'localizada'
-    ? `- "Entrada en calor": ejercicios de categoría "Zona media"
-- "Bloque 1": ejercicios de "Tren inferior"
-- "Bloque 2": ejercicios de "Tren Superior" (respetando patrón del día si aplica)
-- "Bloque 3": mix de "Tren inferior" y "Tren Superior" (respetando patrón del día si aplica)
-- "Bloque 4": SIEMPRE vacío (no incluirlo)`
-    : `- Cada sección ("Entrada en calor", "Bloque 1", "Bloque 2", "Bloque 3", "Bloque 4") tiene 1 ejercicio de cada categoría disponible`;
+    ? `EC=Zona media, B1=Tren inferior, B2=Tren Superior(patrón), B3=TI+TS mix, B4=vacío`
+    : `cada bloque: 1 ejercicio por categoría`;
 
-  const prompt = `ALUMNO:
-- Nivel: ${lvl}/4 (1=principiante, 2=básico, 3=intermedio, 4=avanzado)
-- Deportes: ${sportsText}
-- Permite ejercicios de impacto: ${canDoImpact ? 'sí' : 'no'}
-- Tipo de rutina: ${routineType}
+  const prompt = `Alumno: nivel ${lvl}/4, deportes: ${sportsText}, rutina: ${routineType}
+Secciones: ${sectionDesc}
+Patrones: ${patternsText}
+Progresión: D1-3: 3ej/3series; D4-6: 4ej/3series; D7-9: 4ej/3series reps+10%; D10-12: 4ej/4series reps-10%
+Reglas: solo ejercicios del pool(nombre exacto), dificultad≤${lvl + 2}, no repetir en días consecutivos, reps pares 8-12, complementar sin sobrecargar músculos del deporte.
 
-DISTRIBUCIÓN DE SECCIONES:
-${sectionDesc}
-
-PATRÓN POR DÍA (Tren Superior):
-${patternsText}
-
-PROGRESIÓN:
-- Días 1–3: 3 ejercicios por sección, 3 series, reps entre 8 y 12
-- Días 4–6: 4 ejercicios por sección, 3 series, reps entre 8 y 12
-- Días 7–9: 4 ejercicios por sección, 3 series, reps 10% más altas (máx 12)
-- Días 10–12: 4 ejercicios por sección, 4 series, reps 10% más bajas (mín 8)
-
-REGLAS OBLIGATORIAS:
-1. Usa ÚNICAMENTE ejercicios del pool (nombre exacto, sin inventar)
-2. No uses ejercicios con dificultad > ${lvl + 2}
-3. No repitas el mismo ejercicio en días consecutivos
-4. Variá los ejercicios a lo largo de los 12 días para estimular progresión
-5. Si el alumno practica deportes, complementá sin sobrecargar los mismos grupos musculares
-6. Repeticiones siempre en números pares (8, 10 o 12)
-7. Para el patrón: "empuje" = pecho/tríceps/hombro empuje; "traccion" = espalda/bíceps; "libre" = cualquier Tren Superior
-8. Si la sección no tiene ejercicios suficientes en el pool, poné los que haya (mínimo 1)
-
-POOL DE EJERCICIOS (nombre|categoría|dificultad|impacto|patrón|url):
+POOL(nombre|cat|dif|patrón):
 ${poolText}
 
-Responde ÚNICAMENTE con JSON válido (sin texto antes ni después, sin bloques markdown):
-{
-  "routines": [
-    {
-      "day": 1,
-      "sections": [
-        {
-          "name": "Entrada en calor",
-          "exercises": [
-            {"name": "nombre exacto del ejercicio del pool", "repetitions": "10", "series": 3, "youtubeUrl": "url o null"}
-          ]
-        }
-      ]
-    }
-  ]
-}`;
+JSON sin texto extra:
+{"routines":[{"day":1,"sections":[{"name":"Entrada en calor","exercises":[{"name":"nombre exacto","repetitions":"10","series":3}]}]}]}`;
 
   let routinesData;
   try {
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 8000,
+      model: 'llama-3.1-8b-instant',
+      max_tokens: 6000,
       temperature: 0.4,
       messages: [
         {
@@ -566,7 +528,7 @@ Responde ÚNICAMENTE con JSON válido (sin texto antes ni después, sin bloques 
   if (!Array.isArray(routinesData?.routines) || routinesData.routines.length === 0)
     return res.status(500).json({ error: 'La IA no devolvió rutinas válidas' });
 
-  // Validar que los ejercicios existan en el pool
+  // Validar que los ejercicios existan en el pool y agregar URL
   const poolNames = new Set(pool.map(ex => ex.nombre));
   for (const rt of routinesData.routines) {
     for (const sec of rt.sections || []) {
@@ -575,6 +537,7 @@ Responde ÚNICAMENTE con JSON válido (sin texto antes ni después, sin bloques 
           console.warn(`Ejercicio no encontrado en pool, descartado: "${ex.name}"`);
           return false;
         }
+        ex.youtubeUrl = urlByName.get(ex.name) || null;
         return true;
       });
     }
