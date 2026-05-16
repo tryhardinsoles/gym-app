@@ -477,7 +477,18 @@ router.post('/users/:id/generate-routines-ai', requireAdmin, async (req, res) =>
 
   // Pool compacto sin URLs (las recuperamos después por nombre)
   const urlByName = new Map(pool.map(ex => [ex.nombre, ex.url || null]));
-  const poolText = pool.map(ex =>
+
+  // Limitar a 8 ejercicios por categoría más cercanos al nivel del alumno
+  const byCategory = {};
+  for (const ex of pool.filter(e => e.dificultad <= lvl + 2)) {
+    if (!byCategory[ex.categoria]) byCategory[ex.categoria] = [];
+    byCategory[ex.categoria].push(ex);
+  }
+  const reducedPool = Object.values(byCategory).flatMap(exs =>
+    exs.sort((a, b) => Math.abs(a.dificultad - lvl) - Math.abs(b.dificultad - lvl)).slice(0, 8)
+  );
+
+  const poolText = reducedPool.map(ex =>
     `${ex.nombre}|${ex.categoria}|${ex.dificultad}${ex.patron ? `|${ex.patron}` : ''}`
   ).join('\n');
 
@@ -506,7 +517,7 @@ JSON sin texto extra:
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     const completion = await groq.chat.completions.create({
       model: 'llama-3.1-8b-instant',
-      max_tokens: 6000,
+      max_tokens: 4000,
       temperature: 0.4,
       messages: [
         {
