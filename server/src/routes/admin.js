@@ -496,6 +496,23 @@ router.post('/users/:id/generate-routines-ai', requireAdmin, async (req, res) =>
     ? `EC=Zona media, B1=Tren inferior, B2=Tren Superior(patrón), B3=TI+TS mix, B4=omitir`
     : `cada bloque: 1 ejercicio por categoría`;
 
+  // Extrae el primer objeto JSON completo y balanceado del texto
+  function extractJSON(text) {
+    const start = text.indexOf('{');
+    if (start === -1) return null;
+    let depth = 0, inString = false, escaped = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (escaped)          { escaped = false; continue; }
+      if (ch === '\\' && inString) { escaped = true; continue; }
+      if (ch === '"')       { inString = !inString; continue; }
+      if (inString)         continue;
+      if (ch === '{')       depth++;
+      else if (ch === '}')  { depth--; if (depth === 0) return text.slice(start, i + 1); }
+    }
+    return null;
+  }
+
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
   const buildPrompt = (startDay, endDay, avoidList) => {
@@ -559,7 +576,7 @@ JSON EXACTO sin texto extra (días ${startDay} al ${endDay}):
       const prompt   = buildPrompt(startDay, endDay, usedExercises);
 
       const completion = await groq.chat.completions.create({
-        model: 'llama-3.1-8b-instant',
+        model: 'llama-3.3-70b-versatile',
         max_tokens: 1500,
         temperature: 0.4,
         messages: [
@@ -572,10 +589,9 @@ JSON EXACTO sin texto extra (días ${startDay} al ${endDay}):
       });
 
       const text = completion.choices[0].message.content.trim();
-      const start = text.indexOf('{');
-      const end = text.lastIndexOf('}');
-      if (start === -1 || end === -1) throw new Error(`Batch ${batch + 1}: la IA no devolvió JSON`);
-      const batchData = JSON.parse(text.slice(start, end + 1));
+      const jsonStr = extractJSON(text);
+      if (!jsonStr) throw new Error(`Batch ${batch + 1}: la IA no devolvió JSON`);
+      const batchData = JSON.parse(jsonStr);
 
       if (!Array.isArray(batchData?.routines))
         throw new Error(`Batch ${batch + 1}: respuesta inválida de la IA`);
