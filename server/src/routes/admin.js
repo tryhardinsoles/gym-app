@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAdmin } from '../middleware/admin.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -129,6 +130,19 @@ router.post('/users/:id/routines', requireAdmin, async (req, res) => {
 router.put('/routines/:id', requireAdmin, async (req, res) => {
   const { name, sections } = req.body;
 
+  // Capturar nombres actuales antes de borrar para detectar cambios
+  const currentRoutine = await prisma.routine.findUnique({
+    where: { id: req.params.id },
+    include: {
+      sections: { orderBy: { order: 'asc' }, include: { exercises: { orderBy: { order: 'asc' } } } }
+    }
+  });
+
+  const oldBySection = {};
+  for (const sec of currentRoutine.sections) {
+    oldBySection[sec.name] = sec.exercises.map(ex => ex.name);
+  }
+
   await prisma.routineSection.deleteMany({ where: { routineId: req.params.id } });
 
   const routine = await prisma.routine.update({
@@ -154,6 +168,38 @@ router.put('/routines/:id', requireAdmin, async (req, res) => {
     },
     include: { sections: { include: { exercises: true } } }
   });
+
+  // Detectar ejercicios cuyo nombre cambió por posición (misma sección, mismo índice)
+  const nameChanges = new Map();
+  for (const newSec of sections) {
+    const oldNames = oldBySection[newSec.name] || [];
+    newSec.exercises.forEach((newEx, i) => {
+      const oldName = oldNames[i];
+      if (oldName && oldName !== newEx.name && newEx.name) {
+        nameChanges.set(oldName, newEx.name);
+      }
+    });
+  }
+
+  // Propagar cambios a rutinas futuras del mismo alumno
+  if (nameChanges.size > 0) {
+    const futureRoutines = await prisma.routine.findMany({
+      where: { userId: currentRoutine.userId, order: { gt: currentRoutine.order } },
+      include: { sections: { include: { exercises: true } } }
+    });
+
+    for (const fut of futureRoutines) {
+      for (const sec of fut.sections) {
+        for (const ex of sec.exercises) {
+          const newName = nameChanges.get(ex.name);
+          if (newName) {
+            await prisma.exercise.update({ where: { id: ex.id }, data: { name: newName } });
+          }
+        }
+      }
+    }
+  }
+
   res.json(routine);
 });
 
@@ -368,6 +414,204 @@ router.get('/users/:userId/stats', requireAdmin, async (req, res) => {
   });
 
   res.json(result);
+});
+
+// Generar 12 rutinas con IA (Claude) a partir de un CSV de ejercicios
+router.post('/users/:id/generate-routines-ai', requireAdmin, async (req, res) => {
+  const { exercisesCSV, studentLevel, canDoImpact, routineType, dayPatterns, sports } = req.body;
+  if (!exercisesCSV) return res.status(400).json({ error: 'Falta el CSV de ejercicios' });
+  if (!process.env.GEMINI_API_KEY)
+    return res.status(400).json({ error: 'GEMINI_API_KEY no configurada en el servidor' });
+
+  function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (const ch of line) {
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+      else { current += ch; }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  const rawLines = exercisesCSV.trim().replace(/\r/g, '').split('\n');
+  const headers = parseCSVLine(rawLines[0]).map(h => h.toLowerCase());
+  const colOf = (...names) => {
+    for (const name of names) {
+      const i = headers.findIndex(h => h.includes(name));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const nameCol   = colOf('nombre') >= 0 ? colOf('nombre') : 1;
+  const urlCol    = colOf('hiperv') >= 0 ? colOf('hiperv') : 2;
+  const catCol    = colOf('categ')  >= 0 ? colOf('categ')  : 3;
+  const diffCol   = colOf('dific')  >= 0 ? colOf('dific')  : 4;
+  const impactCol = colOf('impac')  >= 0 ? colOf('impac')  : 6;
+  const patCol    = colOf('patron', 'patr');
+
+  const allExercises = rawLines.slice(1)
+    .map(line => parseCSVLine(line))
+    .filter(v => v.length > 3 && v[nameCol]?.trim())
+    .map(v => ({
+      nombre:     v[nameCol].trim(),
+      url:        v[urlCol]?.trim() || '',
+      categoria:  v[catCol]?.trim() || '',
+      dificultad: parseInt(v[diffCol]) || 0,
+      impacto:    v[impactCol]?.trim().toLowerCase() === 'si',
+      patron:     patCol >= 0 ? (v[patCol]?.trim() || '') : '',
+    }))
+    .filter(ex => ex.nombre && ex.categoria);
+
+  if (allExercises.length === 0)
+    return res.status(400).json({ error: 'No se encontraron ejercicios válidos en el CSV' });
+
+  const pool = canDoImpact ? allExercises : allExercises.filter(ex => !ex.impacto);
+  if (pool.length === 0)
+    return res.status(400).json({ error: 'No hay ejercicios sin impacto en el CSV' });
+
+  const lvl = Number(studentLevel) || 2;
+  const sportsText = sports?.length ? sports.join(', ') : 'ninguno';
+
+  const poolText = pool.map(ex =>
+    `${ex.nombre}|${ex.categoria}|dif:${ex.dificultad}|impacto:${ex.impacto ? 'sí' : 'no'}${ex.patron ? `|patrón:${ex.patron}` : ''}${ex.url ? `|url:${ex.url}` : ''}`
+  ).join('\n');
+
+  const patternsText = Array.isArray(dayPatterns)
+    ? dayPatterns.map((p, i) => `  Día ${i + 1}: ${p}`).join('\n')
+    : '  Todos: libre';
+
+  const sectionDesc = routineType === 'localizada'
+    ? `- "Entrada en calor": ejercicios de categoría "Zona media"
+- "Bloque 1": ejercicios de "Tren inferior"
+- "Bloque 2": ejercicios de "Tren Superior" (respetando patrón del día si aplica)
+- "Bloque 3": mix de "Tren inferior" y "Tren Superior" (respetando patrón del día si aplica)
+- "Bloque 4": SIEMPRE vacío (no incluirlo)`
+    : `- Cada sección ("Entrada en calor", "Bloque 1", "Bloque 2", "Bloque 3", "Bloque 4") tiene 1 ejercicio de cada categoría disponible`;
+
+  const prompt = `ALUMNO:
+- Nivel: ${lvl}/4 (1=principiante, 2=básico, 3=intermedio, 4=avanzado)
+- Deportes: ${sportsText}
+- Permite ejercicios de impacto: ${canDoImpact ? 'sí' : 'no'}
+- Tipo de rutina: ${routineType}
+
+DISTRIBUCIÓN DE SECCIONES:
+${sectionDesc}
+
+PATRÓN POR DÍA (Tren Superior):
+${patternsText}
+
+PROGRESIÓN:
+- Días 1–3: 3 ejercicios por sección, 3 series, reps entre 8 y 12
+- Días 4–6: 4 ejercicios por sección, 3 series, reps entre 8 y 12
+- Días 7–9: 4 ejercicios por sección, 3 series, reps 10% más altas (máx 12)
+- Días 10–12: 4 ejercicios por sección, 4 series, reps 10% más bajas (mín 8)
+
+REGLAS OBLIGATORIAS:
+1. Usa ÚNICAMENTE ejercicios del pool (nombre exacto, sin inventar)
+2. No uses ejercicios con dificultad > ${lvl + 2}
+3. No repitas el mismo ejercicio en días consecutivos
+4. Variá los ejercicios a lo largo de los 12 días para estimular progresión
+5. Si el alumno practica deportes, complementá sin sobrecargar los mismos grupos musculares
+6. Repeticiones siempre en números pares (8, 10 o 12)
+7. Para el patrón: "empuje" = pecho/tríceps/hombro empuje; "traccion" = espalda/bíceps; "libre" = cualquier Tren Superior
+8. Si la sección no tiene ejercicios suficientes en el pool, poné los que haya (mínimo 1)
+
+POOL DE EJERCICIOS (nombre|categoría|dificultad|impacto|patrón|url):
+${poolText}
+
+Responde ÚNICAMENTE con JSON válido (sin texto antes ni después, sin bloques markdown):
+{
+  "routines": [
+    {
+      "day": 1,
+      "sections": [
+        {
+          "name": "Entrada en calor",
+          "exercises": [
+            {"name": "nombre exacto del ejercicio del pool", "repetitions": "10", "series": 3, "youtubeUrl": "url o null"}
+          ]
+        }
+      ]
+    }
+  ]
+}`;
+
+  let routinesData;
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      systemInstruction: 'Eres un entrenador personal experto en planificación de rutinas. Generás rutinas usando ÚNICAMENTE los ejercicios del pool provisto. Respondés SOLO con JSON válido, sin texto adicional ni markdown.',
+    });
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonText = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+    routinesData = JSON.parse(jsonText);
+  } catch (err) {
+    console.error('Error IA:', err);
+    return res.status(500).json({ error: `Error al generar con IA: ${err.message}` });
+  }
+
+  if (!Array.isArray(routinesData?.routines) || routinesData.routines.length === 0)
+    return res.status(500).json({ error: 'La IA no devolvió rutinas válidas' });
+
+  // Validar que los ejercicios existan en el pool
+  const poolNames = new Set(pool.map(ex => ex.nombre));
+  for (const rt of routinesData.routines) {
+    for (const sec of rt.sections || []) {
+      sec.exercises = (sec.exercises || []).filter(ex => {
+        if (!poolNames.has(ex.name)) {
+          console.warn(`Ejercicio no encontrado en pool, descartado: "${ex.name}"`);
+          return false;
+        }
+        return true;
+      });
+    }
+    rt.sections = (rt.sections || []).filter(s => s.exercises.length > 0);
+  }
+
+  // Guardar en la base de datos
+  const userId = req.params.id;
+  const [lastMesRow, lastOrderRow] = await Promise.all([
+    prisma.routine.findFirst({ where: { userId }, orderBy: { mes: 'desc' }, select: { mes: true } }),
+    prisma.routine.findFirst({ where: { userId }, orderBy: { order: 'desc' }, select: { order: true } }),
+  ]);
+  const nextMes   = (lastMesRow?.mes   ?? 0) + 1;
+  let   nextOrder = (lastOrderRow?.order ?? 0) + 1;
+
+  for (const rt of routinesData.routines) {
+    if (!rt.sections?.length) continue;
+    await prisma.routine.create({
+      data: {
+        userId,
+        name: `Dia ${rt.day}`,
+        order: nextOrder++,
+        mes: nextMes,
+        sections: {
+          create: rt.sections.map((sec, si) => ({
+            name: sec.name,
+            order: si,
+            exercises: {
+              create: sec.exercises.map((ex, ei) => ({
+                name: ex.name,
+                repetitions: String(ex.repetitions || '10'),
+                weight: null,
+                series: Number(ex.series) || 3,
+                youtubeUrl: ex.youtubeUrl || null,
+                order: ei,
+              }))
+            }
+          }))
+        }
+      }
+    });
+  }
+
+  res.json({ created: routinesData.routines.filter(r => r.sections?.length > 0).length, mes: nextMes });
 });
 
 // Generar 12 rutinas automáticamente a partir de un CSV de ejercicios

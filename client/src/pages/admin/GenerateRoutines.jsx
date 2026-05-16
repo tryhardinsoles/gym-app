@@ -11,6 +11,12 @@ const LEVEL_DESC = [
   'Alto rendimiento. Accede a todo el catálogo.',
 ];
 
+const SPORTS = [
+  'Fútbol', 'Básquet', 'Vóley', 'Tenis', 'Pádel', 'Running',
+  'Ciclismo', 'Natación', 'Handball', 'Rugby', 'Hockey',
+  'Boxeo', 'Artes marciales', 'Golf', 'Crossfit',
+];
+
 export default function GenerateRoutines() {
   const { userId } = useParams();
   const navigate = useNavigate();
@@ -20,22 +26,30 @@ export default function GenerateRoutines() {
   const [canDoImpact, setCanDoImpact] = useState(true);
   const [routineType, setRoutineType] = useState('localizada');
   const [dayPatterns, setDayPatterns] = useState(Array(12).fill('libre'));
+  const [sports, setSports] = useState([]);
   const [csvFile, setCsvFile] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
 
-  const handleGenerate = async () => {
+  const toggleSport = (sport) =>
+    setSports(prev => prev.includes(sport) ? prev.filter(s => s !== sport) : [...prev, sport]);
+
+  const handleGenerate = async (useAI) => {
     if (!csvFile) { setError('Seleccioná el CSV de ejercicios'); return; }
     setGenerating(true);
     setError('');
     try {
       const exercisesCSV = await csvFile.text();
-      const { data } = await axios.post(`/api/admin/users/${userId}/generate-routines`, {
+      const endpoint = useAI
+        ? `/api/admin/users/${userId}/generate-routines-ai`
+        : `/api/admin/users/${userId}/generate-routines`;
+      const { data } = await axios.post(endpoint, {
         exercisesCSV,
         studentLevel,
         canDoImpact,
         routineType,
         dayPatterns,
+        sports,
       });
       alert(`Mes ${data.mes} generado — ${data.created} rutinas creadas.`);
       navigate(`/admin/users/${userId}`);
@@ -47,7 +61,7 @@ export default function GenerateRoutines() {
   };
 
   return (
-    <div className="min-h-screen p-4 max-w-2xl mx-auto pb-36">
+    <div className="min-h-screen p-4 max-w-2xl mx-auto pb-40">
       <div className="flex items-center gap-3 pt-6 mb-8">
         <button
           onClick={() => navigate(`/admin/users/${userId}`)}
@@ -86,6 +100,32 @@ export default function GenerateRoutines() {
           <p className="text-white font-bold text-sm">{LEVEL_LABELS[studentLevel]}</p>
           <p className="text-gray-400 text-xs mt-0.5">{LEVEL_DESC[studentLevel]}</p>
         </div>
+      </div>
+
+      {/* Deportes */}
+      <div className="card mb-4">
+        <h2 className="text-base font-black text-white mb-1">Deportes que practica</h2>
+        <p className="text-gray-500 text-sm mb-4">
+          La IA usa esta info para complementar sin sobrecargar los músculos del deporte
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {SPORTS.map(sport => (
+            <button
+              key={sport}
+              onClick={() => toggleSport(sport)}
+              className={`px-3 py-2 rounded-xl text-sm font-bold transition-colors ${
+                sports.includes(sport)
+                  ? 'bg-brand-500 text-black'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {sport}
+            </button>
+          ))}
+        </div>
+        {sports.length === 0 && (
+          <p className="text-gray-600 text-xs mt-3">Sin deporte seleccionado — rutina generalista</p>
+        )}
       </div>
 
       {/* Impacto */}
@@ -262,10 +302,17 @@ export default function GenerateRoutines() {
           )}
           <button
             className="btn-primary py-5 text-lg"
-            onClick={handleGenerate}
+            onClick={() => handleGenerate(true)}
             disabled={generating}
           >
-            {generating ? 'Generando 12 rutinas...' : 'Generar 12 Rutinas'}
+            {generating ? 'Generando con IA...' : 'Generar con IA'}
+          </button>
+          <button
+            className="w-full bg-gray-800 hover:bg-gray-700 text-gray-400 font-bold py-3 rounded-2xl transition-colors text-sm"
+            onClick={() => handleGenerate(false)}
+            disabled={generating}
+          >
+            Generar clásico (sin IA)
           </button>
         </div>
       </div>

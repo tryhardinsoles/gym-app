@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell($env:PATH)"
+      "PowerShell($env:PATH)",
+      "Bash(npm install *)",
+      "Bash(node -e \"import\\('@anthropic-ai/sdk'\\).then\\(m => console.log\\('OK', m.default.name\\)\\)\")"
     ]
   }
 }
