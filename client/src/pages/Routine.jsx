@@ -1,20 +1,44 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { useAuth } from '../contexts/AuthContext.jsx';
-import RoutineSection from '../components/RoutineSection.jsx';
+import ExerciseRow from '../components/ExerciseRow.jsx';
 import ConfettiScreen from '../components/ConfettiScreen.jsx';
 import WellbeingScale from '../components/WellbeingScale.jsx';
 
+function getYouTubeId(url) {
+  if (!url) return null;
+  const m = url.match(/(?:v=|youtu\.be\/)([^&?\s]{11})/);
+  return m ? m[1] : null;
+}
+
+function VideoPanel({ videoId }) {
+  if (!videoId) {
+    return (
+      <div className="w-full h-full bg-gray-900 flex items-center justify-center">
+        <p className="text-gray-600 text-sm px-4 text-center">Tocá un ejercicio para ver el video</p>
+      </div>
+    );
+  }
+  return (
+    <iframe
+      key={videoId}
+      src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&rel=0`}
+      className="w-full h-full border-0"
+      allow="autoplay; encrypted-media; fullscreen"
+      allowFullScreen
+      title="Video ejercicio"
+    />
+  );
+}
+
 export default function Routine({ adminPlay = false }) {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { userId, routineId } = useParams();
 
   const [routine, setRoutine] = useState(null);
   const [sessionId, setSessionId] = useState(null);
-  const [feedbacks, setFeedbacks] = useState({});
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
+  const [selectedExercise, setSelectedExercise] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showConfetti, setShowConfetti] = useState(false);
   const [error, setError] = useState('');
@@ -26,15 +50,10 @@ export default function Routine({ adminPlay = false }) {
       try {
         let url = '/api/routines/current';
         if (adminPlay && routineId) url = `/api/admin/routines/${routineId}/play-data`;
-
         const { data } = await axios.get(url);
         if (!data) { setError('No tenés rutinas pendientes 🎉'); setLoading(false); return; }
-
         setRoutine(data.routine);
         setSessionId(data.sessionId);
-        const fbMap = {};
-        data.feedbacks?.forEach(fb => { fbMap[fb.exerciseId] = fb.feedback; });
-        setFeedbacks(fbMap);
       } catch {
         setError('Error al cargar la rutina');
       } finally {
@@ -48,16 +67,11 @@ export default function Routine({ adminPlay = false }) {
   const currentSection = activeSections[currentSectionIdx];
   const isLastSection = currentSectionIdx === activeSections.length - 1;
 
-  const sectionComplete = currentSection
-    ? currentSection.exercises.every(ex => feedbacks[ex.id])
-    : false;
-
-  const handleFeedback = useCallback(async (exerciseId, value) => {
-    setFeedbacks(prev => ({ ...prev, [exerciseId]: value }));
-    if (sessionId) {
-      await axios.post(`/api/workouts/${sessionId}/feedback`, { exerciseId, feedback: value });
+  useEffect(() => {
+    if (currentSection?.exercises?.length > 0) {
+      setSelectedExercise(currentSection.exercises[0]);
     }
-  }, [sessionId]);
+  }, [currentSectionIdx, currentSection]);
 
   const handleExerciseUpdate = useCallback(async (exerciseId, field, value) => {
     const url = adminPlay
@@ -67,7 +81,6 @@ export default function Routine({ adminPlay = false }) {
   }, [adminPlay]);
 
   const handleNext = async () => {
-    if (!sectionComplete) return;
     if (isLastSection) {
       if (sessionId) {
         await axios.post(`/api/workouts/${sessionId}/complete`);
@@ -75,7 +88,6 @@ export default function Routine({ adminPlay = false }) {
       setShowConfetti(true);
     } else {
       setCurrentSectionIdx(i => i + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -83,11 +95,12 @@ export default function Routine({ adminPlay = false }) {
     if (wellbeingScore && routineId) {
       try {
         await axios.post(`/api/admin/routines/${routineId}/wellbeing`, { score: wellbeingScore });
-      } catch {} // no bloquear si falla
+      } catch {}
     }
     setWellbeingDone(true);
   };
 
+  // Pantalla de bienestar (solo admin play, antes de empezar)
   if (adminPlay && !wellbeingDone && !loading && !error && routine) return (
     <div className="min-h-screen p-4 max-w-lg mx-auto flex flex-col justify-center gap-6">
       <div className="card">
@@ -130,74 +143,83 @@ export default function Routine({ adminPlay = false }) {
     <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center gap-6">
       <div className="text-6xl">🎉</div>
       <p className="text-xl font-bold text-white">{error}</p>
-      <button className="btn-secondary max-w-xs" onClick={() => navigate(adminPlay ? `/admin/users/${userId}` : '/')}>
+      <button
+        className="btn-secondary max-w-xs"
+        onClick={() => navigate(adminPlay ? `/admin/users/${userId}` : '/')}
+      >
         Volver al inicio
       </button>
     </div>
   );
 
+  const videoId = getYouTubeId(selectedExercise?.youtubeUrl);
+
   return (
-    <div className="min-h-screen p-4 max-w-lg mx-auto pb-32">
-      {/* Header */}
-      <div className="flex items-center gap-3 pt-6 mb-6">
+    <div className="fixed inset-0 flex flex-col bg-gray-950">
+      {/* Top 50% — Video */}
+      <div className="h-1/2 bg-black relative flex-shrink-0">
+        <VideoPanel videoId={videoId} />
+
         <button
           onClick={() => navigate(adminPlay ? `/admin/users/${userId}` : '/')}
-          className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors"
+          className="absolute top-3 left-3 z-10 bg-black/60 backdrop-blur-sm text-white text-sm font-bold px-3 py-1.5 rounded-xl"
         >
           ← Volver
         </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-black text-white truncate">{routine?.name}</h1>
-          <p className="text-gray-500 text-xs">
-            Sección {currentSectionIdx + 1} de {activeSections.length}
-          </p>
-        </div>
+
         {adminPlay && (
-          <span className="bg-yellow-500/20 text-yellow-400 text-xs font-bold px-3 py-1 rounded-full">
+          <span className="absolute top-3 right-3 z-10 bg-yellow-500/20 text-yellow-400 text-xs font-bold px-3 py-1 rounded-full">
             Vista admin
           </span>
         )}
       </div>
 
-      {/* Section progress dots */}
-      <div className="flex gap-2 mb-6">
-        {activeSections.map((s, i) => (
-          <div
-            key={s.id}
-            className={`h-1.5 flex-1 rounded-full transition-all ${
-              i < currentSectionIdx ? 'bg-brand-500' :
-              i === currentSectionIdx ? 'bg-brand-400 animate-pulse' :
-              'bg-gray-800'
-            }`}
-          />
-        ))}
-      </div>
+      {/* Bottom 50% — Bloque activo */}
+      <div className="h-1/2 flex flex-col overflow-hidden">
+        {/* Header del bloque */}
+        <div className="px-4 pt-3 pb-2 flex items-center justify-between flex-shrink-0 border-b border-gray-800/60">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-white font-black text-base leading-tight truncate">
+              {currentSection?.name}
+            </h2>
+            <p className="text-gray-500 text-xs mt-0.5 truncate">{routine?.name}</p>
+          </div>
+          {/* Indicador de progreso */}
+          <div className="flex gap-1.5 ml-3 flex-shrink-0">
+            {activeSections.map((_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 w-5 rounded-full transition-all ${
+                  i < currentSectionIdx ? 'bg-brand-500' :
+                  i === currentSectionIdx ? 'bg-brand-400' :
+                  'bg-gray-700'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
 
-      {/* Current section */}
-      {currentSection && (
-        <RoutineSection
-          section={currentSection}
-          feedbacks={feedbacks}
-          onFeedback={handleFeedback}
-          onExerciseUpdate={handleExerciseUpdate}
-        />
-      )}
+        {/* Lista de ejercicios */}
+        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
+          {currentSection?.exercises.map(ex => (
+            <ExerciseRow
+              key={ex.id}
+              exercise={ex}
+              isSelected={selectedExercise?.id === ex.id}
+              onSelect={() => setSelectedExercise(ex)}
+              onExerciseUpdate={handleExerciseUpdate}
+            />
+          ))}
+        </div>
 
-      {/* Next / Finish button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-gray-950 via-gray-950/95 to-transparent">
-        <div className="max-w-lg mx-auto">
+        {/* Botón completar */}
+        <div className="px-4 py-3 flex-shrink-0">
           <button
-            className={`btn-primary transition-opacity ${sectionComplete ? 'opacity-100' : 'opacity-40 cursor-not-allowed'}`}
             onClick={handleNext}
-            disabled={!sectionComplete}
+            className="w-full bg-brand-500 hover:bg-brand-400 active:scale-95 text-black font-black py-4 rounded-2xl text-base transition-all"
           >
-            {isLastSection ? '🏁 Finalizar Rutina' : 'Siguiente →'}
+            {isLastSection ? '🏁 Finalizar entrenamiento' : 'Completar bloque →'}
           </button>
-          {!sectionComplete && (
-            <p className="text-center text-gray-500 text-xs mt-2">
-              Completá todos los feedbacks para continuar
-            </p>
-          )}
         </div>
       </div>
     </div>
