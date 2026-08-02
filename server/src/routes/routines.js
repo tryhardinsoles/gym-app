@@ -20,6 +20,50 @@ router.get('/current', requireAuth, async (req, res) => {
 
   if (!routine) return res.json(null);
 
+  // Pre-cargar pesos del último entrenamiento completado donde el ejercicio tenga el mismo nombre
+  const exerciseNames = [...new Set(
+    routine.sections.flatMap(s => s.exercises.map(e => e.name))
+  )];
+
+  if (exerciseNames.length > 0) {
+    const completedRoutines = await prisma.routine.findMany({
+      where: { userId: req.user.id, completedAt: { not: null } },
+      orderBy: { completedAt: 'desc' },
+      take: 20,
+      select: {
+        sections: {
+          select: {
+            exercises: {
+              where: { name: { in: exerciseNames }, weight: { not: null } },
+              select: { name: true, weight: true }
+            }
+          }
+        }
+      }
+    });
+
+    // Primer resultado por nombre = el más reciente
+    const lastWeights = {};
+    for (const r of completedRoutines) {
+      for (const s of r.sections) {
+        for (const ex of s.exercises) {
+          if (ex.weight?.trim() && !lastWeights[ex.name]) {
+            lastWeights[ex.name] = ex.weight;
+          }
+        }
+      }
+    }
+
+    // Actualizar en DB y en memoria los ejercicios que tienen peso histórico
+    const toUpdate = routine.sections.flatMap(s => s.exercises).filter(ex => lastWeights[ex.name]);
+    if (toUpdate.length > 0) {
+      await Promise.all(
+        toUpdate.map(ex => prisma.exercise.update({ where: { id: ex.id }, data: { weight: lastWeights[ex.name] } }))
+      );
+      for (const ex of toUpdate) ex.weight = lastWeights[ex.name];
+    }
+  }
+
   // Buscar sesión activa o crear una
   let session = await prisma.workoutSession.findFirst({
     where: { userId: req.user.id, routineId: routine.id, completedAt: null },
