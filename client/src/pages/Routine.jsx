@@ -7,7 +7,7 @@ import WellbeingScale from '../components/WellbeingScale.jsx';
 
 function getYouTubeId(url) {
   if (!url) return null;
-  const m = url.match(/(?:v=|youtu\.be\/)([^&?\s]{11})/);
+  const m = url.match(/(?:v=|youtu\.be\/|shorts\/)([^&?\s]{11})/);
   return m ? m[1] : null;
 }
 
