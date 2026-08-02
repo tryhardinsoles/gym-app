@@ -675,26 +675,46 @@ function parseCsvLine(line) {
 
 async function importCsvForUser(userId, csvText) {
   const lines = csvText.trim().replace(/\r/g, '').split('\n');
+  // Strip UTF-8 BOM if present
+  if (lines[0].charCodeAt(0) === 0xFEFF) lines[0] = lines[0].slice(1);
   const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase().trim());
-  const idx = k => headers.indexOf(k);
+
+  // Flexible column matching — finds first header that contains the term
+  const findCol = (...terms) => {
+    for (const term of terms) {
+      const i = headers.findIndex(h => h.includes(term));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+
+  const diaCol  = findCol('dia', 'día', 'day');
+  const secCol  = findCol('secci', 'section', 'bloque', 'sec');
+  const ejCol   = findCol('ejerc', 'exercise', 'nombre', 'name');
+  const repCol  = findCol('rep');
+  const serCol  = findCol('ser');
+  const pesoCol = findCol('peso', 'weight');
+  const youCol  = findCol('youtube', 'video', 'url', 'link');
+
+  if (diaCol === -1 || secCol === -1 || ejCol === -1)
+    throw new Error(`Columnas no encontradas. Encabezados detectados: ${headers.join(' | ')}`);
 
   const rows = lines.slice(1)
     .map(line => parseCsvLine(line))
-    .filter(vals => vals.length > 1 && vals[idx('dia')])
+    .filter(vals => vals.length > 1 && vals[diaCol]?.trim())
     .map(vals => ({
-      dia:          parseInt(vals[idx('dia')]),
-      seccion:      vals[idx('seccion')]?.trim(),
-      ejercicio:    vals[idx('ejercicio')]?.trim(),
-      repeticiones: vals[idx('repeticiones')]?.trim() || '10',
-      series:       parseInt(vals[idx('series')]) || 3,
-      peso:         vals[idx('peso')]?.trim() || null,
-      youtube:      vals[idx('youtube')]?.trim() || null,
+      dia:          parseInt(vals[diaCol]),
+      seccion:      vals[secCol]?.trim(),
+      ejercicio:    vals[ejCol]?.trim(),
+      repeticiones: repCol >= 0 ? (vals[repCol]?.trim() || '10') : '10',
+      series:       serCol >= 0 ? (parseInt(vals[serCol]) || 3) : 3,
+      peso:         pesoCol >= 0 ? (vals[pesoCol]?.trim() || null) : null,
+      youtube:      youCol >= 0 ? (vals[youCol]?.trim() || null) : null,
     }))
     .filter(r => r.dia >= 1 && r.dia <= 12 && r.seccion && r.ejercicio);
 
   if (rows.length === 0) throw new Error('La hoja no tiene filas válidas');
 
-  const SECTION_NAMES = ['Entrada en calor', 'Bloque 1', 'Bloque 2', 'Bloque 3', 'Bloque 4'];
   const [lastMesRow, lastOrderRow] = await Promise.all([
     prisma.routine.findFirst({ where: { userId }, orderBy: { mes: 'desc' }, select: { mes: true } }),
     prisma.routine.findFirst({ where: { userId }, orderBy: { order: 'desc' }, select: { order: true } }),
@@ -712,17 +732,16 @@ async function importCsvForUser(userId, csvText) {
   let created = 0;
   for (let dia = 1; dia <= 12; dia++) {
     if (!byDia[dia]) continue;
-    const sections = SECTION_NAMES
-      .filter(sName => byDia[dia][sName]?.length > 0)
-      .map((sName, si) => ({
-        name: sName, order: si,
-        exercises: {
-          create: byDia[dia][sName].map((r, ei) => ({
-            name: r.ejercicio, repetitions: r.repeticiones,
-            weight: r.peso, series: r.series, youtubeUrl: r.youtube, order: ei,
-          }))
-        }
-      }));
+    const sectionNames = Object.keys(byDia[dia]);
+    const sections = sectionNames.map((sName, si) => ({
+      name: sName, order: si,
+      exercises: {
+        create: byDia[dia][sName].map((r, ei) => ({
+          name: r.ejercicio, repetitions: r.repeticiones,
+          weight: r.peso, series: r.series, youtubeUrl: r.youtube, order: ei,
+        }))
+      }
+    }));
     await prisma.routine.create({
       data: { userId, name: `Dia ${dia}`, order: nextOrder++, mes: nextMes, sections: { create: sections } }
     });
