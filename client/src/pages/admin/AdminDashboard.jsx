@@ -50,7 +50,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-3 mb-3">
         <button
           onClick={() => setShowCreate(!showCreate)}
           className="btn-primary flex-1 py-3 text-base"
@@ -64,6 +64,12 @@ export default function AdminDashboard() {
           {showPasswords ? '🔒 Ocultar' : '👁 Ver contraseñas'}
         </button>
       </div>
+      <button
+        onClick={() => navigate('/admin/import-sheets')}
+        className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 rounded-2xl transition-colors text-sm mb-6"
+      >
+        Importar rutinas desde Google Sheets
+      </button>
 
       {/* Create form */}
       {showCreate && (

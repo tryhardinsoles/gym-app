@@ -639,5 +639,142 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
   res.json({ created: generatedRoutines.length, mes: nextMes });
 });
 
+// ── Google Sheets helpers ─────────────────────────────────────────────────────
+
+function sheetToCsvUrl(url) {
+  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (!idMatch) return null;
+  const gidMatch = url.match(/[#&?]gid=(\d+)/);
+  let csvUrl = `https://docs.google.com/spreadsheets/d/${idMatch[1]}/export?format=csv`;
+  if (gidMatch) csvUrl += `&gid=${gidMatch[1]}`;
+  return csvUrl;
+}
+
+async function fetchSheetCsv(sheetUrl) {
+  const csvUrl = sheetToCsvUrl(sheetUrl);
+  if (!csvUrl) throw new Error('URL de Google Sheets inválida');
+  const res = await fetch(csvUrl, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`No se pudo acceder a la hoja (HTTP ${res.status})`);
+  const text = await res.text();
+  if (text.trimStart().startsWith('<'))
+    throw new Error('La hoja no es pública — compartila con "Cualquier persona con el enlace"');
+  return text;
+}
+
+function parseCsvLine(line) {
+  const result = [];
+  let current = '', inQuotes = false;
+  for (const ch of line) {
+    if (ch === '"') { inQuotes = !inQuotes; }
+    else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+    else { current += ch; }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+async function importCsvForUser(userId, csvText) {
+  const lines = csvText.trim().replace(/\r/g, '').split('\n');
+  const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase().trim());
+  const idx = k => headers.indexOf(k);
+
+  const rows = lines.slice(1)
+    .map(line => parseCsvLine(line))
+    .filter(vals => vals.length > 1 && vals[idx('dia')])
+    .map(vals => ({
+      dia:          parseInt(vals[idx('dia')]),
+      seccion:      vals[idx('seccion')]?.trim(),
+      ejercicio:    vals[idx('ejercicio')]?.trim(),
+      repeticiones: vals[idx('repeticiones')]?.trim() || '10',
+      series:       parseInt(vals[idx('series')]) || 3,
+      peso:         vals[idx('peso')]?.trim() || null,
+      youtube:      vals[idx('youtube')]?.trim() || null,
+    }))
+    .filter(r => r.dia >= 1 && r.dia <= 12 && r.seccion && r.ejercicio);
+
+  if (rows.length === 0) throw new Error('La hoja no tiene filas válidas');
+
+  const SECTION_NAMES = ['Entrada en calor', 'Bloque 1', 'Bloque 2', 'Bloque 3', 'Bloque 4'];
+  const [lastMesRow, lastOrderRow] = await Promise.all([
+    prisma.routine.findFirst({ where: { userId }, orderBy: { mes: 'desc' }, select: { mes: true } }),
+    prisma.routine.findFirst({ where: { userId }, orderBy: { order: 'desc' }, select: { order: true } }),
+  ]);
+  const nextMes = (lastMesRow?.mes ?? 0) + 1;
+  let nextOrder = (lastOrderRow?.order ?? 0) + 1;
+
+  const byDia = {};
+  for (const r of rows) {
+    if (!byDia[r.dia]) byDia[r.dia] = {};
+    if (!byDia[r.dia][r.seccion]) byDia[r.dia][r.seccion] = [];
+    byDia[r.dia][r.seccion].push(r);
+  }
+
+  let created = 0;
+  for (let dia = 1; dia <= 12; dia++) {
+    if (!byDia[dia]) continue;
+    const sections = SECTION_NAMES
+      .filter(sName => byDia[dia][sName]?.length > 0)
+      .map((sName, si) => ({
+        name: sName, order: si,
+        exercises: {
+          create: byDia[dia][sName].map((r, ei) => ({
+            name: r.ejercicio, repetitions: r.repeticiones,
+            weight: r.peso, series: r.series, youtubeUrl: r.youtube, order: ei,
+          }))
+        }
+      }));
+    await prisma.routine.create({
+      data: { userId, name: `Dia ${dia}`, order: nextOrder++, mes: nextMes, sections: { create: sections } }
+    });
+    created++;
+  }
+  return { created, mes: nextMes };
+}
+
+// Importar rutinas desde una Google Sheet maestra (username → link de hoja individual)
+router.post('/import-from-sheets', requireAdmin, async (req, res) => {
+  const { masterSheetUrl } = req.body;
+  if (!masterSheetUrl) return res.status(400).json({ error: 'Falta la URL de la hoja maestra' });
+
+  let masterCsv;
+  try {
+    masterCsv = await fetchSheetCsv(masterSheetUrl);
+  } catch (err) {
+    return res.status(400).json({ error: `Hoja maestra: ${err.message}` });
+  }
+
+  const lines = masterCsv.trim().replace(/\r/g, '').split('\n');
+  const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase().trim());
+  const usernameIdx = headers.findIndex(h => h.includes('user') || h.includes('alumno') || h.includes('nombre'));
+  const urlIdx = headers.findIndex(h => h.includes('url') || h.includes('link') || h.includes('hoja') || h.includes('sheet'));
+
+  if (usernameIdx === -1 || urlIdx === -1)
+    return res.status(400).json({ error: 'La hoja maestra debe tener columnas "username" y "sheet_url"' });
+
+  const entries = lines.slice(1)
+    .map(line => parseCsvLine(line))
+    .filter(vals => vals[usernameIdx]?.trim() && vals[urlIdx]?.trim())
+    .map(vals => ({ username: vals[usernameIdx].trim(), sheetUrl: vals[urlIdx].trim() }));
+
+  if (entries.length === 0)
+    return res.status(400).json({ error: 'La hoja maestra no tiene filas con datos' });
+
+  const results = [];
+  for (const { username, sheetUrl } of entries) {
+    try {
+      const user = await prisma.user.findUnique({ where: { username }, select: { id: true } });
+      if (!user) { results.push({ username, error: 'Usuario no encontrado en la app' }); continue; }
+
+      const csvText = await fetchSheetCsv(sheetUrl);
+      const { created, mes } = await importCsvForUser(user.id, csvText);
+      results.push({ username, created, mes });
+    } catch (err) {
+      results.push({ username, error: err.message });
+    }
+  }
+
+  res.json({ results });
+});
+
 export default router;
 
