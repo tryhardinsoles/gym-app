@@ -212,11 +212,18 @@ export default function Routine({ adminPlay = false }) {
           ))}
         </div>
 
-        {/* Botón completar */}
-        <div className="px-4 py-3 flex-shrink-0">
+        {/* Botones navegación */}
+        <div className="px-4 py-3 flex-shrink-0 flex gap-2">
+          <button
+            onClick={() => setCurrentSectionIdx(i => Math.max(0, i - 1))}
+            disabled={currentSectionIdx === 0}
+            className="w-1/5 bg-gray-800 hover:bg-gray-700 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            ←
+          </button>
           <button
             onClick={handleNext}
-            className="w-full bg-brand-500 hover:bg-brand-400 active:scale-95 text-black font-black py-4 rounded-2xl text-base transition-all"
+            className="w-4/5 bg-brand-500 hover:bg-brand-400 active:scale-95 text-black font-black py-4 rounded-2xl text-base transition-all"
           >
             {isLastSection ? '🏁 Finalizar entrenamiento' : 'Completar bloque →'}
           </button>
