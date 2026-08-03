@@ -11,6 +11,10 @@ export default function UserDetail() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState('');
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [importingSheet, setImportingSheet] = useState(false);
+  const [sheetError, setSheetError] = useState('');
+  const [sheetSuccess, setSheetSuccess] = useState('');
 
   const fetchRoutines = async () => {
     try {
@@ -37,6 +41,29 @@ export default function UserDetail() {
   const handleReset = async (routineId) => {
     await axios.patch(`/api/admin/routines/${routineId}/reset`);
     fetchRoutines();
+  };
+
+  const handleClearRoutines = async () => {
+    if (!confirm(`¿Borrar TODAS las rutinas de ${username}? Esta acción no se puede deshacer.`)) return;
+    await axios.delete(`/api/admin/users/${userId}/routines`);
+    fetchRoutines();
+  };
+
+  const handleImportSheet = async () => {
+    if (!sheetUrl.trim()) { setSheetError('Pegá la URL de la hoja'); return; }
+    setImportingSheet(true);
+    setSheetError('');
+    setSheetSuccess('');
+    try {
+      const { data } = await axios.post(`/api/admin/users/${userId}/import-from-sheet`, { sheetUrl: sheetUrl.trim() });
+      setSheetSuccess(`Mes ${data.mes} importado — ${data.created} rutinas creadas`);
+      setSheetUrl('');
+      fetchRoutines();
+    } catch (err) {
+      setSheetError(err.response?.data?.error || 'Error al importar');
+    } finally {
+      setImportingSheet(false);
+    }
   };
 
   const handleImportCSV = async (e) => {
@@ -130,6 +157,34 @@ export default function UserDetail() {
       {importError && (
         <p className="text-red-400 text-sm bg-red-500/10 rounded-xl px-4 py-2 mb-4">{importError}</p>
       )}
+
+      {/* Importar desde Google Sheets */}
+      <div className="card mb-4 mt-2 space-y-2">
+        <p className="text-sm font-bold text-white">Importar desde Google Sheets</p>
+        <input
+          className="input-field text-sm"
+          placeholder="https://docs.google.com/spreadsheets/d/..."
+          value={sheetUrl}
+          onChange={e => { setSheetUrl(e.target.value); setSheetError(''); setSheetSuccess(''); }}
+        />
+        {sheetError && <p className="text-red-400 text-xs">{sheetError}</p>}
+        {sheetSuccess && <p className="text-brand-400 text-xs">{sheetSuccess}</p>}
+        <div className="flex gap-2">
+          <button
+            onClick={handleImportSheet}
+            disabled={importingSheet}
+            className="btn-primary py-2 text-sm flex-1"
+          >
+            {importingSheet ? 'Importando...' : 'Importar rutinas'}
+          </button>
+          <button
+            onClick={handleClearRoutines}
+            className="bg-red-500/10 text-red-400 hover:bg-red-500/20 font-bold px-4 py-2 rounded-2xl transition-colors text-sm"
+          >
+            Limpiar todo
+          </button>
+        </div>
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-10">

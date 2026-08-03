@@ -292,6 +292,25 @@ router.delete('/routines/:id', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Borrar todas las rutinas de un alumno
+router.delete('/users/:id/routines', requireAdmin, async (req, res) => {
+  await prisma.routine.deleteMany({ where: { userId: req.params.id } });
+  res.json({ ok: true });
+});
+
+// Importar rutinas de un alumno desde Google Sheets
+router.post('/users/:id/import-from-sheet', requireAdmin, async (req, res) => {
+  const { sheetUrl } = req.body;
+  if (!sheetUrl) return res.status(400).json({ error: 'Falta la URL de la hoja' });
+  try {
+    const csvText = await fetchSheetCsv(sheetUrl);
+    const { created, mes } = await importCsvForUser(req.params.id, csvText);
+    res.json({ created, mes });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Resetear rutina (marcarla como no completada)
 router.patch('/routines/:id/reset', requireAdmin, async (req, res) => {
   const routine = await prisma.routine.update({
