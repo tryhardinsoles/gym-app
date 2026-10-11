@@ -44,6 +44,7 @@ export default function Routine({ adminPlay = false }) {
   const [error, setError] = useState('');
   const [wellbeingDone, setWellbeingDone] = useState(false);
   const [wellbeingScore, setWellbeingScore] = useState(null);
+  const [isOverview, setIsOverview] = useState(false);
 
   useEffect(() => {
     const fetchRoutine = async () => {
@@ -166,10 +167,26 @@ export default function Routine({ adminPlay = false }) {
 
   const videoId = getYouTubeId(selectedExercise?.youtubeUrl);
 
+  const handleExerciseInOverview = (sectionIdx, exercise) => {
+    setCurrentSectionIdx(sectionIdx);
+    setSelectedExercise(exercise);
+    setIsOverview(false);
+  };
+
+  const TRANSITION = 'height 0.45s cubic-bezier(0.4, 0, 0.2, 1)';
+
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-950">
-      {/* Top 50% — Video */}
-      <div className="h-1/2 bg-black relative flex-shrink-0">
+      {/* Video — 35% normal, 0 in overview */}
+      <div
+        style={{
+          height: isOverview ? '0%' : '35%',
+          transition: TRANSITION,
+          flexShrink: 0,
+          overflow: 'hidden',
+        }}
+        className="bg-black relative"
+      >
         <VideoPanel videoId={videoId} />
 
         <button
@@ -186,60 +203,151 @@ export default function Routine({ adminPlay = false }) {
         )}
       </div>
 
-      {/* Bottom 50% — Bloque activo */}
-      <div className="h-1/2 flex flex-col overflow-hidden">
+      {/* Bottom — 65% normal, 100% in overview */}
+      <div
+        style={{ height: isOverview ? '100%' : '65%', transition: TRANSITION }}
+        className="flex flex-col overflow-hidden"
+      >
         {/* Header del bloque */}
         <div className="px-4 pt-3 pb-2 flex items-center justify-between flex-shrink-0 border-b border-gray-800/60">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-white font-black text-base leading-tight truncate">
-              {currentSection?.name}
-            </h2>
-            <p className="text-gray-500 text-xs mt-0.5 truncate">{routine?.name}</p>
-          </div>
-          {/* Indicador de progreso */}
-          <div className="flex gap-1.5 ml-3 flex-shrink-0">
-            {activeSections.map((_, i) => (
-              <div
-                key={i}
-                className={`h-1.5 w-5 rounded-full transition-all ${
-                  i < currentSectionIdx ? 'bg-brand-500' :
-                  i === currentSectionIdx ? 'bg-brand-400' :
-                  'bg-gray-700'
-                }`}
-              />
-            ))}
+          {isOverview ? (
+            <button
+              onClick={() => navigate(adminPlay ? `/admin/users/${userId}` : '/')}
+              className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
+            >
+              ← Volver
+            </button>
+          ) : (
+            <div className="min-w-0 flex-1">
+              <h2 className="text-white font-black text-base leading-tight truncate">
+                {currentSection?.name}
+              </h2>
+              <p className="text-gray-500 text-xs mt-0.5 truncate">{routine?.name}</p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+            {/* Progress dots — hide in overview */}
+            {!isOverview && (
+              <div className="flex gap-1.5">
+                {activeSections.map((_, i) => (
+                  <div
+                    key={i}
+                    className={`h-1.5 w-5 rounded-full transition-all ${
+                      i < currentSectionIdx ? 'bg-brand-500' :
+                      i === currentSectionIdx ? 'bg-brand-400' :
+                      'bg-gray-700'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Overview toggle */}
+            <button
+              onClick={() => setIsOverview(v => !v)}
+              className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${
+                isOverview ? 'bg-brand-500/20 text-brand-400' : 'bg-gray-800 text-gray-400 hover:text-white'
+              }`}
+              title={isOverview ? 'Volver al bloque' : 'Ver todos los bloques'}
+            >
+              {isOverview ? (
+                /* X to close overview */
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              ) : (
+                /* Grid icon */
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                  <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                </svg>
+              )}
+            </button>
           </div>
         </div>
 
-        {/* Lista de ejercicios */}
-        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
-          {currentSection?.exercises.map(ex => (
-            <ExerciseRow
-              key={ex.id}
-              exercise={ex}
-              isSelected={selectedExercise?.id === ex.id}
-              onSelect={() => setSelectedExercise(ex)}
-              onExerciseUpdate={handleExerciseUpdate}
-            />
-          ))}
-        </div>
+        {isOverview ? (
+          /* ── Overview: all sections ────────────────────────── */
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5 pb-6">
+            <p className="text-xs font-black text-gray-500 uppercase tracking-widest px-1">{routine?.name}</p>
+            {activeSections.map((section, sIdx) => {
+              const isCurrent = sIdx === currentSectionIdx;
+              const isPast = sIdx < currentSectionIdx;
+              return (
+                <div key={section.id} className={isPast ? 'opacity-40' : ''}>
+                  <div className="flex items-center gap-2 mb-2 px-1">
+                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                      isPast ? 'bg-brand-500' : isCurrent ? 'bg-brand-400 animate-pulse' : 'bg-gray-700'
+                    }`} />
+                    <p className={`text-xs font-black uppercase tracking-widest flex-1 truncate ${
+                      isCurrent ? 'text-brand-400' : 'text-gray-500'
+                    }`}>
+                      {section.name}
+                    </p>
+                    {isCurrent && (
+                      <span className="text-[10px] bg-brand-500/20 text-brand-400 px-2 py-0.5 rounded-full font-bold shrink-0">
+                        Actual
+                      </span>
+                    )}
+                    {isPast && (
+                      <span className="text-[10px] bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full font-bold shrink-0">
+                        Completado
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    {section.exercises.map(ex => (
+                      <button
+                        key={ex.id}
+                        onClick={() => handleExerciseInOverview(sIdx, ex)}
+                        className="w-full text-left rounded-2xl px-3 py-2.5 bg-gray-800/60 hover:bg-gray-700/60 active:scale-[0.98] transition-all flex items-center justify-between gap-3"
+                      >
+                        <span className="text-white text-sm font-semibold truncate">{ex.name}</span>
+                        <div className="flex gap-3 text-xs text-gray-500 shrink-0">
+                          <span>{ex.series} ×</span>
+                          <span>{ex.repetitions}</span>
+                          {ex.weight && <span className="text-gray-400">{ex.weight}</span>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* ── Normal: current section ───────────────────────── */
+          <>
+            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
+              {currentSection?.exercises.map(ex => (
+                <ExerciseRow
+                  key={ex.id}
+                  exercise={ex}
+                  isSelected={selectedExercise?.id === ex.id}
+                  onSelect={() => setSelectedExercise(ex)}
+                  onExerciseUpdate={handleExerciseUpdate}
+                />
+              ))}
+            </div>
 
-        {/* Botones navegación */}
-        <div className="px-4 py-3 flex-shrink-0 flex gap-2">
-          <button
-            onClick={() => setCurrentSectionIdx(i => Math.max(0, i - 1))}
-            disabled={currentSectionIdx === 0}
-            className="w-1/5 bg-gray-800 hover:bg-gray-700 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            ←
-          </button>
-          <button
-            onClick={handleNext}
-            className="w-4/5 bg-brand-500 hover:bg-brand-400 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all"
-          >
-            {isLastSection ? '🏁 Finalizar entrenamiento' : 'Completar bloque →'}
-          </button>
-        </div>
+            <div className="px-4 py-3 flex-shrink-0 flex gap-2">
+              <button
+                onClick={() => setCurrentSectionIdx(i => Math.max(0, i - 1))}
+                disabled={currentSectionIdx === 0}
+                className="w-1/5 bg-gray-800 hover:bg-gray-700 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                ←
+              </button>
+              <button
+                onClick={handleNext}
+                className="w-4/5 bg-brand-500 hover:bg-brand-400 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all"
+              >
+                {isLastSection ? '🏁 Finalizar entrenamiento' : 'Completar bloque →'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
