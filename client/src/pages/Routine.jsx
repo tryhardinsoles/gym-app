@@ -223,7 +223,7 @@ export default function Routine({ adminPlay = false }) {
           </button>
           <button
             onClick={handleNext}
-            className="w-4/5 bg-brand-500 hover:bg-brand-400 active:scale-95 text-black font-black py-4 rounded-2xl text-base transition-all"
+            className="w-4/5 bg-brand-500 hover:bg-brand-400 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all"
           >
             {isLastSection ? '🏁 Finalizar entrenamiento' : 'Completar bloque →'}
           </button>
