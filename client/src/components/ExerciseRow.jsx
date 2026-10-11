@@ -2,10 +2,16 @@ import { useState } from 'react';
 
 export default function ExerciseRow({ exercise, isSelected, onSelect, onExerciseUpdate }) {
   const [weight, setWeight] = useState(exercise.weight || '');
+  const [reps, setReps] = useState(exercise.repetitions || '');
 
   const handleWeightBlur = () => {
     if (!onExerciseUpdate || weight === (exercise.weight || '')) return;
     onExerciseUpdate(exercise.id, 'weight', weight.trim());
+  };
+
+  const handleRepsBlur = () => {
+    if (!onExerciseUpdate || reps === (exercise.repetitions || '')) return;
+    onExerciseUpdate(exercise.id, 'repetitions', reps.trim());
   };
 
   return (
@@ -32,9 +38,18 @@ export default function ExerciseRow({ exercise, isSelected, onSelect, onExercise
           <span className="block text-gray-500 text-[10px] mb-0.5">Series</span>
           <span className="font-bold text-white">{exercise.series}</span>
         </div>
-        <div className="flex-1 bg-gray-700/50 rounded-xl px-2 py-1.5 text-center">
+        <div
+          className="flex-1 bg-gray-700/50 rounded-xl px-2 py-1.5 text-center"
+          onClick={e => e.stopPropagation()}
+        >
           <span className="block text-gray-500 text-[10px] mb-0.5">Reps</span>
-          <span className="font-bold text-white">{exercise.repetitions}</span>
+          <input
+            className="w-full bg-transparent font-bold text-white text-center outline-none text-xs"
+            value={reps}
+            placeholder="—"
+            onChange={e => setReps(e.target.value)}
+            onBlur={handleRepsBlur}
+          />
         </div>
         <div
           className="flex-1 bg-gray-700/50 rounded-xl px-2 py-1.5 text-center"
