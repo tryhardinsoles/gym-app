@@ -20,7 +20,7 @@ function getWeekStart(date = new Date()) {
 // ── Student routes ────────────────────────────────────────────────────────────
 
 router.get('/', requireAuth, async (req, res) => {
-  const weekStart = getWeekStart();
+  const weekStart = req.query.weekStart ? new Date(req.query.weekStart) : getWeekStart();
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
     select: { plan: true }
@@ -43,7 +43,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 router.post('/book/:slotId', requireAuth, async (req, res) => {
-  const weekStart = getWeekStart();
+  const weekStart = req.body.weekStart ? new Date(req.body.weekStart) : getWeekStart();
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
     select: { plan: true }

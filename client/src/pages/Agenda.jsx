@@ -1,52 +1,87 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 
-const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-const DAY_FULL  = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const DAY_FULL = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const MONTHS   = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+// All local time — no UTC methods
+function getLocalWeekStart(offsetWeeks = 0) {
+  const d = new Date();
+  const day = d.getDay(); // 0=Sun
+  const diff = day === 0 ? -6 : 1 - day; // shift to Monday
+  d.setDate(d.getDate() + diff + offsetWeeks * 7);
+  d.setHours(0, 0, 0, 0);
+  d.setMilliseconds(0);
+  return d;
+}
 
 function getWeekDates(weekStart) {
-  // weekStart is Monday; build Mon–Sun array
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
-    d.setUTCDate(d.getUTCDate() + i);
+    d.setDate(d.getDate() + i);
     return d;
   });
 }
 
+function formatWeekLabel(weekStart) {
+  const end = new Date(weekStart);
+  end.setDate(end.getDate() + 6);
+  const s = weekStart.getDate();
+  const e = end.getDate();
+  const em = MONTHS[end.getMonth()];
+  if (weekStart.getMonth() === end.getMonth()) return `${s} - ${e} ${em}`;
+  return `${s} ${MONTHS[weekStart.getMonth()]} - ${e} ${em}`;
+}
+
+function isPast(date, time) {
+  const [h, m] = time.split(':').map(Number);
+  const slotDate = new Date(date);
+  slotDate.setHours(h, m, 0, 0);
+  return slotDate < new Date();
+}
+
 export default function Agenda() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0);
   const [slots, setSlots] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
   const [plan, setPlan] = useState('start');
   const [maxCalls, setMaxCalls] = useState(1);
-  const [weekStart, setWeekStart] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [booking, setBooking] = useState(null); // slotId being booked
+  const [booking, setBooking] = useState(null);
 
-  const fetchData = async () => {
+  const weekStart = getLocalWeekStart(weekOffset);
+  const weekDates = getWeekDates(weekStart);
+
+  const fetchData = async (offset = weekOffset) => {
+    const ws = getLocalWeekStart(offset);
     try {
-      const { data } = await axios.get('/api/agenda');
+      const { data } = await axios.get('/api/agenda', {
+        params: { weekStart: ws.toISOString() }
+      });
       setSlots(data.slots);
       setMyBookings(data.myBookings);
       setPlan(data.plan);
       setMaxCalls(data.maxCalls);
-      setWeekStart(new Date(data.weekStart));
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    setLoading(true);
+    fetchData(weekOffset);
+  }, [weekOffset]);
 
   const handleBook = async (slotId) => {
     setBooking(slotId);
     try {
-      await axios.post(`/api/agenda/book/${slotId}`);
+      await axios.post(`/api/agenda/book/${slotId}`, {
+        weekStart: weekStart.toISOString()
+      });
       await fetchData();
     } catch (err) {
       alert(err.response?.data?.error || 'No se pudo reservar');
@@ -68,25 +103,19 @@ export default function Agenda() {
   const usedCalls = myBookings.length;
   const canBook = usedCalls < maxCalls;
 
-  const weekDates = weekStart ? getWeekDates(weekStart) : [];
-
   const slotsByDay = slots.reduce((acc, s) => {
     if (!acc[s.dayOfWeek]) acc[s.dayOfWeek] = [];
     acc[s.dayOfWeek].push(s);
     return acc;
   }, {});
 
-  // Days that have at least one slot (Mon=1 through Sun=0 mapped to Mon-Sun display)
+  // Mon→Sun order; only days that have slots
   const activeDays = weekDates
-    .map((date, i) => ({ date, dayOfWeek: date.getUTCDay(), idx: i }))
+    .map(date => ({ date, dayOfWeek: date.getDay() }))
     .filter(({ dayOfWeek }) => slotsByDay[dayOfWeek]?.length > 0);
 
-  const isPast = (date, time) => {
-    const [h, m] = time.split(':').map(Number);
-    const slotDate = new Date(date);
-    slotDate.setUTCHours(h, m, 0, 0);
-    return slotDate < new Date();
-  };
+  const isCurrentWeek = weekOffset === 0;
+  const weekLabel = formatWeekLabel(weekStart);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -113,24 +142,44 @@ export default function Agenda() {
         <div className="w-10" />
       </div>
 
+      {/* Week navigator */}
+      <div className="mt-5 flex items-center justify-between bg-gray-900 rounded-2xl px-4 py-3">
+        <button
+          onClick={() => setWeekOffset(w => w - 1)}
+          disabled={weekOffset === 0}
+          className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors disabled:opacity-20 disabled:cursor-not-allowed text-base font-bold"
+        >
+          ‹
+        </button>
+        <div className="text-center">
+          <p className="text-white font-black text-sm">{weekLabel}</p>
+          <p className="text-gray-600 text-xs mt-0.5">
+            {isCurrentWeek ? 'Esta semana' : weekOffset === 1 ? 'Próxima semana' : `En ${weekOffset} semanas`}
+          </p>
+        </div>
+        <button
+          onClick={() => setWeekOffset(w => w + 1)}
+          className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors text-base font-bold"
+        >
+          ›
+        </button>
+      </div>
+
       {/* Plan badge + call counter */}
-      <div className="mt-6 card flex items-center justify-between">
+      <div className="mt-4 card flex items-center justify-between">
         <div>
-          <p className="text-white font-black text-base">Llamadas esta semana</p>
+          <p className="text-white font-black text-base">Llamadas {isCurrentWeek ? 'esta' : 'esa'} semana</p>
           <p className="text-gray-500 text-xs mt-0.5">
-            Plan <span className={plan === 'performance' ? 'text-brand-400 font-bold' : 'text-gray-400 font-bold'}>{plan === 'performance' ? 'Performance' : 'Start'}</span>
+            Plan <span className={plan === 'performance' ? 'text-brand-400 font-bold' : 'text-gray-400 font-bold'}>
+              {plan === 'performance' ? 'Performance' : 'Start'}
+            </span>
           </p>
         </div>
         <div className="flex items-center gap-2">
           {Array.from({ length: maxCalls }, (_, i) => (
-            <div
-              key={i}
-              className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-black transition-all ${
-                i < usedCalls
-                  ? 'bg-brand-500 border-brand-500 text-white'
-                  : 'border-gray-700 text-gray-600'
-              }`}
-            >
+            <div key={i} className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-black transition-all ${
+              i < usedCalls ? 'bg-brand-500 border-brand-500 text-white' : 'border-gray-700 text-gray-600'
+            }`}>
               {i < usedCalls ? '✓' : i + 1}
             </div>
           ))}
@@ -151,20 +200,14 @@ export default function Agenda() {
                     {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
                   </p>
                   {b.slot.googleMeetUrl && (
-                    <a
-                      href={b.slot.googleMeetUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-brand-400 text-xs font-semibold hover:text-brand-300 transition-colors"
-                    >
+                    <a href={b.slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-brand-400 text-xs font-semibold hover:text-brand-300 transition-colors">
                       Abrir Google Meet →
                     </a>
                   )}
                 </div>
-                <button
-                  onClick={() => handleCancel(b.id)}
-                  className="text-xs text-gray-500 hover:text-red-400 font-medium px-3 py-1.5 rounded-xl hover:bg-gray-800 transition-colors"
-                >
+                <button onClick={() => handleCancel(b.id)}
+                  className="text-xs text-gray-500 hover:text-red-400 font-medium px-3 py-1.5 rounded-xl hover:bg-gray-800 transition-colors">
                   Cancelar
                 </button>
               </div>
@@ -181,8 +224,8 @@ export default function Agenda() {
 
         {activeDays.length === 0 ? (
           <div className="card text-center py-10">
-            <p className="text-gray-500 text-sm">No hay horarios disponibles esta semana.</p>
-            <p className="text-gray-600 text-xs mt-1">Tu profe cargará horarios pronto.</p>
+            <p className="text-gray-500 text-sm">No hay horarios esta semana.</p>
+            <p className="text-gray-600 text-xs mt-1">Probá con la semana siguiente.</p>
           </div>
         ) : (
           <div className="space-y-4 pb-10">
@@ -191,30 +234,23 @@ export default function Agenda() {
               return (
                 <div key={dayOfWeek}>
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">
-                    {DAY_FULL[dayOfWeek]} {date.getUTCDate()}/{date.getUTCMonth() + 1}
+                    {DAY_FULL[dayOfWeek]} {date.getDate()}/{date.getMonth() + 1}
                   </p>
                   <div className="space-y-2">
                     {daySlots.map(slot => {
                       const myBooking = myBookings.find(b => b.slotId === slot.id);
                       const past = isPast(date, slot.time);
                       return (
-                        <div
-                          key={slot.id}
-                          className={`card flex items-center justify-between py-3 px-4 transition-all ${
-                            myBooking ? 'border border-brand-500/30 bg-brand-500/5' : ''
-                          } ${past ? 'opacity-40' : ''}`}
-                        >
+                        <div key={slot.id} className={`card flex items-center justify-between py-3 px-4 transition-all ${
+                          myBooking ? 'border border-brand-500/30 bg-brand-500/5' : ''
+                        } ${past && !myBooking ? 'opacity-35' : ''}`}>
                           <div>
                             <p className={`font-black text-sm ${myBooking ? 'text-brand-300' : 'text-white'}`}>
                               {slot.time}
                             </p>
                             {myBooking && slot.googleMeetUrl && (
-                              <a
-                                href={slot.googleMeetUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-brand-400 text-xs hover:text-brand-300"
-                              >
+                              <a href={slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
+                                className="text-brand-400 text-xs hover:text-brand-300">
                                 Meet →
                               </a>
                             )}
@@ -228,11 +264,8 @@ export default function Agenda() {
                           ) : !canBook ? (
                             <span className="text-gray-600 text-xs font-medium">Límite alcanzado</span>
                           ) : (
-                            <button
-                              onClick={() => handleBook(slot.id)}
-                              disabled={booking === slot.id}
-                              className="bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
-                            >
+                            <button onClick={() => handleBook(slot.id)} disabled={booking === slot.id}
+                              className="bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-4 py-2 rounded-xl transition-colors disabled:opacity-50">
                               {booking === slot.id ? '...' : 'Reservar'}
                             </button>
                           )}
