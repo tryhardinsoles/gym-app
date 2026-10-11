@@ -34,8 +34,8 @@ router.get('/current', requireAuth, async (req, res) => {
         sections: {
           select: {
             exercises: {
-              where: { name: { in: exerciseNames }, weight: { not: null } },
-              select: { name: true, weight: true }
+              where: { name: { in: exerciseNames } },
+              select: { name: true, weight: true, repetitions: true }
             }
           }
         }
@@ -44,23 +44,36 @@ router.get('/current', requireAuth, async (req, res) => {
 
     // Primer resultado por nombre = el más reciente
     const lastWeights = {};
+    const lastReps = {};
     for (const r of completedRoutines) {
       for (const s of r.sections) {
         for (const ex of s.exercises) {
           if (ex.weight?.trim() && !lastWeights[ex.name]) {
             lastWeights[ex.name] = ex.weight;
           }
+          if (ex.repetitions?.trim() && !lastReps[ex.name]) {
+            lastReps[ex.name] = ex.repetitions;
+          }
         }
       }
     }
 
-    // Actualizar en DB y en memoria los ejercicios que tienen peso histórico
-    const toUpdate = routine.sections.flatMap(s => s.exercises).filter(ex => lastWeights[ex.name]);
+    // Actualizar en DB y en memoria los ejercicios con historial
+    const allExercises = routine.sections.flatMap(s => s.exercises);
+    const toUpdate = allExercises.filter(ex => lastWeights[ex.name] || lastReps[ex.name]);
     if (toUpdate.length > 0) {
       await Promise.all(
-        toUpdate.map(ex => prisma.exercise.update({ where: { id: ex.id }, data: { weight: lastWeights[ex.name] } }))
+        toUpdate.map(ex => {
+          const data = {};
+          if (lastWeights[ex.name]) data.weight = lastWeights[ex.name];
+          if (lastReps[ex.name]) data.repetitions = lastReps[ex.name];
+          return prisma.exercise.update({ where: { id: ex.id }, data });
+        })
       );
-      for (const ex of toUpdate) ex.weight = lastWeights[ex.name];
+      for (const ex of toUpdate) {
+        if (lastWeights[ex.name]) ex.weight = lastWeights[ex.name];
+        if (lastReps[ex.name]) ex.repetitions = lastReps[ex.name];
+      }
     }
   }
 
