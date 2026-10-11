@@ -11,9 +11,9 @@ export default function ExerciseRow({ exercise, isSelected, onSelect, onExercise
   return (
     <div
       onClick={onSelect}
-      className={`rounded-2xl p-3 cursor-pointer transition-all border-2 ${
+      className={`rounded-2xl p-3 cursor-pointer transition-all border ${
         isSelected
-          ? 'bg-brand-500/10 border-brand-500'
+          ? 'bg-gray-700/70 border-gray-500'
           : 'bg-gray-800/60 border-transparent active:border-gray-600'
       }`}
     >
