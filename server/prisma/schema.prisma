@@ -12,11 +12,36 @@ model User {
   username  String   @unique
   password  String
   isAdmin   Boolean  @default(false)
+  plan      String   @default("start") // "start" | "performance"
   createdAt DateTime @default(now())
 
   routines        Routine[]
   workoutSessions WorkoutSession[]
   wellbeingLogs   WellbeingLog[]
+  agendaBookings  AgendaBooking[]
+}
+
+model AgendaSlot {
+  id            String          @id @default(cuid())
+  dayOfWeek     Int             // 0=Sun, 1=Mon … 6=Sat
+  time          String          // "HH:MM"
+  googleMeetUrl String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+
+  bookings AgendaBooking[]
+}
+
+model AgendaBooking {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slotId    String
+  slot      AgendaSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  weekStart DateTime   // Monday 00:00:00 UTC of the booked week
+  createdAt DateTime   @default(now())
+
+  @@unique([slotId, weekStart])
 }
 
 model Routine {

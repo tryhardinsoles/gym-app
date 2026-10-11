@@ -64,12 +64,20 @@ export default function AdminDashboard() {
           {showPasswords ? '🔒 Ocultar' : '👁 Ver contraseñas'}
         </button>
       </div>
-      <button
-        onClick={() => navigate('/admin/import-sheets')}
-        className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 rounded-2xl transition-colors text-sm mb-6"
-      >
-        Importar rutinas desde Google Sheets
-      </button>
+      <div className="flex gap-3 mb-6">
+        <button
+          onClick={() => navigate('/admin/import-sheets')}
+          className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 rounded-2xl transition-colors text-sm"
+        >
+          Importar Sheets
+        </button>
+        <button
+          onClick={() => navigate('/admin/agenda')}
+          className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-3 rounded-2xl transition-colors text-sm"
+        >
+          Agenda
+        </button>
+      </div>
 
       {/* Create form */}
       {showCreate && (

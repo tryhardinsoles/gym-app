@@ -105,12 +105,29 @@ export default function Home() {
   const Header = () => (
     <div className="flex justify-between items-center pt-6 pb-2">
       <button
-        onClick={() => setSidebarOpen(true)}
-        className="w-10 h-10 flex flex-col items-center justify-center gap-1.5 rounded-2xl hover:bg-gray-800 transition-colors"
+        onClick={() => setSidebarOpen(v => !v)}
+        className="w-10 h-10 flex flex-col items-center justify-center rounded-2xl hover:bg-gray-800 transition-colors"
+        style={{ gap: '6px' }}
       >
-        <span className="w-5 h-0.5 bg-white rounded-full" />
-        <span className="w-5 h-0.5 bg-white rounded-full" />
-        <span className="w-3 h-0.5 bg-brand-500 rounded-full self-start ml-1" />
+        <span style={{
+          display: 'block', height: '2px', width: '20px', borderRadius: '999px', backgroundColor: '#ffffff',
+          transition: 'transform 0.35s cubic-bezier(0.23,1,0.32,1)',
+          transform: sidebarOpen ? 'translateY(8px) rotate(45deg)' : 'none',
+        }} />
+        <span style={{
+          display: 'block', height: '2px', width: '20px', borderRadius: '999px', backgroundColor: '#ffffff',
+          transition: 'opacity 0.2s ease 0.05s, transform 0.3s ease',
+          opacity: sidebarOpen ? 0 : 1,
+          transform: sidebarOpen ? 'scaleX(0.3)' : 'none',
+        }} />
+        <span style={{
+          display: 'block', height: '2px', borderRadius: '999px',
+          transition: 'transform 0.35s cubic-bezier(0.23,1,0.32,1), width 0.3s ease, background-color 0.2s ease, margin-left 0.3s ease',
+          width: sidebarOpen ? '20px' : '12px',
+          backgroundColor: sidebarOpen ? '#ffffff' : '#e01020',
+          transform: sidebarOpen ? 'translateY(-8px) rotate(-45deg)' : 'none',
+          marginLeft: sidebarOpen ? '0px' : '4px',
+        }} />
       </button>
       <span className="text-xs font-black tracking-widest text-gray-500 uppercase">Tryhard Training</span>
       <div className="w-10" />

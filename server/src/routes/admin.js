@@ -37,7 +37,7 @@ router.get('/users', requireAdmin, async (_req, res) => {
   const users = await prisma.user.findMany({
     where: { isAdmin: false },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, username: true, password: true, createdAt: true }
+    select: { id: true, username: true, password: true, plan: true, createdAt: true }
   });
   res.json(users);
 });
@@ -63,13 +63,14 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
 
 // Editar usuario
 router.put('/users/:id', requireAdmin, async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, plan } = req.body;
   const data = {};
   if (username) data.username = username;
   if (password) data.password = password;
+  if (plan && ['start', 'performance'].includes(plan)) data.plan = plan;
   try {
     const user = await prisma.user.update({ where: { id: req.params.id }, data });
-    res.json({ id: user.id, username: user.username });
+    res.json({ id: user.id, username: user.username, plan: user.plan });
   } catch {
     res.status(400).json({ error: 'Error al actualizar usuario' });
   }

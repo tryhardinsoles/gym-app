@@ -15,6 +15,8 @@ export default function UserDetail() {
   const [importingSheet, setImportingSheet] = useState(false);
   const [sheetError, setSheetError] = useState('');
   const [sheetSuccess, setSheetSuccess] = useState('');
+  const [userPlan, setUserPlan] = useState('start');
+  const [savingPlan, setSavingPlan] = useState(false);
 
   const fetchRoutines = async () => {
     try {
@@ -23,7 +25,7 @@ export default function UserDetail() {
         axios.get(`/api/admin/users/${userId}/routines`)
       ]);
       const found = usersRes.data.find(u => u.id === userId);
-      if (found) setUsername(found.username);
+      if (found) { setUsername(found.username); setUserPlan(found.plan || 'start'); }
       setRoutines(routinesRes.data);
     } finally {
       setLoading(false);
@@ -157,6 +159,37 @@ export default function UserDetail() {
       {importError && (
         <p className="text-red-400 text-sm bg-red-500/10 rounded-xl px-4 py-2 mb-4">{importError}</p>
       )}
+
+      {/* Plan del alumno */}
+      <div className="card mb-4 mt-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-white">Plan</p>
+            <p className="text-gray-500 text-xs mt-0.5">Determina el límite de llamadas en Agenda</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={userPlan}
+              onChange={e => setUserPlan(e.target.value)}
+              className="bg-gray-800 text-white text-sm font-bold rounded-xl px-3 py-2 border border-gray-700 focus:outline-none focus:border-brand-500"
+            >
+              <option value="start">Start — 1 call/semana</option>
+              <option value="performance">Performance — 3 calls/semana</option>
+            </select>
+            <button
+              onClick={async () => {
+                setSavingPlan(true);
+                try { await axios.put(`/api/admin/users/${userId}`, { plan: userPlan }); }
+                finally { setSavingPlan(false); }
+              }}
+              disabled={savingPlan}
+              className="bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-3 py-2 rounded-xl transition-colors disabled:opacity-50"
+            >
+              {savingPlan ? '...' : 'Guardar'}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Importar desde Google Sheets */}
       <div className="card mb-4 mt-2 space-y-2">
