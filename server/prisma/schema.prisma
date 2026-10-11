@@ -30,6 +30,8 @@ model AgendaSlot {
   createdAt     DateTime        @default(now())
 
   bookings AgendaBooking[]
+
+  @@unique([dayOfWeek, time])
 }
 
 model AgendaBooking {

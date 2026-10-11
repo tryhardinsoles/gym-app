@@ -101,6 +101,39 @@ router.post('/admin/slots', requireAdmin, async (req, res) => {
   res.json(slot);
 });
 
+router.post('/admin/slots/range', requireAdmin, async (req, res) => {
+  const { dayOfWeek, startTime, endTime, intervalMinutes = 40 } = req.body;
+  if (dayOfWeek === undefined || !startTime || !endTime)
+    return res.status(400).json({ error: 'Día, hora inicio y hora fin requeridos' });
+
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin   = eh * 60 + em;
+  const interval = Math.max(5, Math.min(240, Number(intervalMinutes)));
+
+  if (startMin >= endMin) return res.status(400).json({ error: 'La hora de inicio debe ser anterior a la de fin' });
+
+  const times = [];
+  for (let t = startMin; t <= endMin; t += interval) {
+    const h = Math.floor(t / 60);
+    const m = t % 60;
+    times.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+  }
+
+  const created = await Promise.all(
+    times.map(time =>
+      prisma.agendaSlot.upsert({
+        where: { dayOfWeek_time: { dayOfWeek: Number(dayOfWeek), time } },
+        update: { isActive: true },
+        create: { dayOfWeek: Number(dayOfWeek), time }
+      })
+    )
+  );
+
+  res.json({ created: created.length, times });
+});
+
 router.patch('/admin/slots/:id', requireAdmin, async (req, res) => {
   const { dayOfWeek, time, googleMeetUrl, isActive } = req.body;
   const data = {};

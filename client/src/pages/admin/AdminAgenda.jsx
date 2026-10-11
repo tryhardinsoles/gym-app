@@ -10,9 +10,12 @@ export default function AdminAgenda() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [addMode, setAddMode] = useState('range'); // 'single' | 'range'
   const [newSlot, setNewSlot] = useState({ dayOfWeek: 1, time: '10:00', googleMeetUrl: '' });
+  const [range, setRange] = useState({ dayOfWeek: 1, startTime: '09:00', endTime: '18:00', intervalMinutes: 40 });
   const [saving, setSaving] = useState(false);
-  const [editingMeet, setEditingMeet] = useState(null); // slotId being edited
+  const [rangeResult, setRangeResult] = useState(null);
+  const [editingMeet, setEditingMeet] = useState(null);
   const [meetUrl, setMeetUrl] = useState('');
 
   const fetchData = async () => {
@@ -48,6 +51,45 @@ export default function AdminAgenda() {
       setSaving(false);
     }
   };
+
+  const handleGenerateRange = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setRangeResult(null);
+    try {
+      const { data } = await axios.post('/api/agenda/admin/slots/range', {
+        dayOfWeek: Number(range.dayOfWeek),
+        startTime: range.startTime,
+        endTime: range.endTime,
+        intervalMinutes: Number(range.intervalMinutes),
+      });
+      setRangeResult(data);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error al generar rango');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Preview times for the range form
+  const previewTimes = (() => {
+    try {
+      const [sh, sm] = range.startTime.split(':').map(Number);
+      const [eh, em] = range.endTime.split(':').map(Number);
+      const startMin = sh * 60 + sm;
+      const endMin   = eh * 60 + em;
+      const interval = Math.max(5, Number(range.intervalMinutes) || 40);
+      if (startMin >= endMin || isNaN(startMin) || isNaN(endMin)) return [];
+      const times = [];
+      for (let t = startMin; t <= endMin; t += interval) {
+        const h = Math.floor(t / 60);
+        const m = t % 60;
+        times.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+      }
+      return times;
+    } catch { return []; }
+  })();
 
   const handleToggle = async (slot) => {
     await axios.patch(`/api/agenda/admin/slots/${slot.id}`, { isActive: !slot.isActive });
@@ -94,51 +136,149 @@ export default function AdminAgenda() {
 
       {/* Add slot form */}
       {showAdd && (
-        <form onSubmit={handleAdd} className="card mb-6 space-y-4">
-          <h3 className="font-black text-white">Nuevo horario</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Día</label>
-              <select
-                className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-brand-500"
-                value={newSlot.dayOfWeek}
-                onChange={e => setNewSlot(s => ({ ...s, dayOfWeek: Number(e.target.value) }))}
-              >
-                {[1,2,3,4,5,6,0].map(d => (
-                  <option key={d} value={d}>{DAY_NAMES[d]}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Hora</label>
-              <input
-                type="time"
-                className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-brand-500"
-                value={newSlot.time}
-                onChange={e => setNewSlot(s => ({ ...s, time: e.target.value }))}
-                required
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Link Google Meet (opcional)</label>
-            <input
-              type="url"
-              placeholder="https://meet.google.com/xxx-xxxx-xxx"
-              className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-brand-500 placeholder-gray-600"
-              value={newSlot.googleMeetUrl}
-              onChange={e => setNewSlot(s => ({ ...s, googleMeetUrl: e.target.value }))}
-            />
-          </div>
-          <div className="flex gap-3">
-            <button type="button" onClick={() => setShowAdd(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-2.5 rounded-2xl text-sm transition-colors">
-              Cancelar
+        <div className="card mb-6 space-y-4">
+          {/* Mode tabs */}
+          <div className="flex gap-1 bg-gray-800 rounded-2xl p-1">
+            <button
+              onClick={() => { setAddMode('range'); setRangeResult(null); }}
+              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${addMode === 'range' ? 'bg-brand-500 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Rango de horarios
             </button>
-            <button type="submit" disabled={saving} className="flex-1 btn-primary py-2.5 text-sm">
-              {saving ? 'Guardando...' : 'Crear horario'}
+            <button
+              onClick={() => { setAddMode('single'); setRangeResult(null); }}
+              className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${addMode === 'single' ? 'bg-brand-500 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Horario individual
             </button>
           </div>
-        </form>
+
+          {addMode === 'range' ? (
+            <form onSubmit={handleGenerateRange} className="space-y-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Día</label>
+                <select
+                  className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-brand-500"
+                  value={range.dayOfWeek}
+                  onChange={e => setRange(r => ({ ...r, dayOfWeek: Number(e.target.value) }))}
+                >
+                  {[1,2,3,4,5,6,0].map(d => (
+                    <option key={d} value={d}>{DAY_NAMES[d]}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Desde</label>
+                  <input
+                    type="time"
+                    className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-brand-500"
+                    value={range.startTime}
+                    onChange={e => setRange(r => ({ ...r, startTime: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Hasta</label>
+                  <input
+                    type="time"
+                    className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-brand-500"
+                    value={range.endTime}
+                    onChange={e => setRange(r => ({ ...r, endTime: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Cada (min)</label>
+                  <input
+                    type="number"
+                    min="5" max="240"
+                    className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-brand-500"
+                    value={range.intervalMinutes}
+                    onChange={e => setRange(r => ({ ...r, intervalMinutes: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Live preview */}
+              {previewTimes.length > 0 && (
+                <div className="bg-gray-800/60 rounded-2xl px-4 py-3">
+                  <p className="text-xs text-gray-500 mb-2">
+                    Se crearán <span className="text-white font-bold">{previewTimes.length}</span> turnos:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {previewTimes.map(t => (
+                      <span key={t} className="bg-gray-700 text-gray-300 text-xs font-bold px-2 py-1 rounded-lg">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {rangeResult && (
+                <p className="text-brand-400 text-sm font-semibold text-center">
+                  ✓ {rangeResult.created} turnos creados para el {DAY_NAMES[range.dayOfWeek]}
+                </p>
+              )}
+
+              <div className="flex gap-3">
+                <button type="button" onClick={() => { setShowAdd(false); setRangeResult(null); }} className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-2.5 rounded-2xl text-sm transition-colors">
+                  Cerrar
+                </button>
+                <button type="submit" disabled={saving || previewTimes.length === 0} className="flex-1 btn-primary py-2.5 text-sm disabled:opacity-40">
+                  {saving ? 'Generando...' : `Generar ${previewTimes.length} turnos`}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleAdd} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Día</label>
+                  <select
+                    className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-brand-500"
+                    value={newSlot.dayOfWeek}
+                    onChange={e => setNewSlot(s => ({ ...s, dayOfWeek: Number(e.target.value) }))}
+                  >
+                    {[1,2,3,4,5,6,0].map(d => (
+                      <option key={d} value={d}>{DAY_NAMES[d]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Hora</label>
+                  <input
+                    type="time"
+                    className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-brand-500"
+                    value={newSlot.time}
+                    onChange={e => setNewSlot(s => ({ ...s, time: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Link Google Meet (opcional)</label>
+                <input
+                  type="url"
+                  placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                  className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 text-sm border border-gray-700 focus:outline-none focus:border-brand-500 placeholder-gray-600"
+                  value={newSlot.googleMeetUrl}
+                  onChange={e => setNewSlot(s => ({ ...s, googleMeetUrl: e.target.value }))}
+                />
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold py-2.5 rounded-2xl text-sm transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={saving} className="flex-1 btn-primary py-2.5 text-sm">
+                  {saving ? 'Guardando...' : 'Crear horario'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       )}
 
       {/* Reservas de esta semana */}
