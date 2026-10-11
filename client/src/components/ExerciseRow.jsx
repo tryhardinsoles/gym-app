@@ -1,17 +1,36 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 export default function ExerciseRow({ exercise, isSelected, onSelect, onExerciseUpdate }) {
   const [weight, setWeight] = useState(exercise.weight || '');
   const [reps, setReps] = useState(exercise.repetitions || '');
 
+  // Rastrear el último valor guardado en DB, independiente del prop
+  const savedWeight = useRef(exercise.weight || '');
+  const savedReps = useRef(exercise.repetitions || '');
+
+  // Sincronizar cuando el prop cambia externamente (ej. prefill de pesos)
+  useEffect(() => {
+    setWeight(exercise.weight || '');
+    savedWeight.current = exercise.weight || '';
+  }, [exercise.weight]);
+
+  useEffect(() => {
+    setReps(exercise.repetitions || '');
+    savedReps.current = exercise.repetitions || '';
+  }, [exercise.repetitions]);
+
   const handleWeightBlur = () => {
-    if (!onExerciseUpdate || weight === (exercise.weight || '')) return;
-    onExerciseUpdate(exercise.id, 'weight', weight.trim());
+    const trimmed = weight.trim();
+    if (!onExerciseUpdate || trimmed === savedWeight.current) return;
+    savedWeight.current = trimmed;
+    onExerciseUpdate(exercise.id, 'weight', trimmed);
   };
 
   const handleRepsBlur = () => {
-    if (!onExerciseUpdate || reps === (exercise.repetitions || '')) return;
-    onExerciseUpdate(exercise.id, 'repetitions', reps.trim());
+    const trimmed = reps.trim();
+    if (!onExerciseUpdate || trimmed === savedReps.current) return;
+    savedReps.current = trimmed;
+    onExerciseUpdate(exercise.id, 'repetitions', trimmed);
   };
 
   return (
