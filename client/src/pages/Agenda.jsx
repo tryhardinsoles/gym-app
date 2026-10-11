@@ -6,22 +6,24 @@ import Sidebar from '../components/Sidebar.jsx';
 const DAY_FULL = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const MONTHS   = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
-// All local time — no UTC methods
-function getLocalWeekStart(offsetWeeks = 0) {
+// Returns local Monday's date as "YYYY-MM-DD" — timezone-independent week key
+function getWeekKey(offsetWeeks = 0) {
   const d = new Date();
   const day = d.getDay(); // 0=Sun
   const diff = day === 0 ? -6 : 1 - day; // shift to Monday
   d.setDate(d.getDate() + diff + offsetWeeks * 7);
-  d.setHours(0, 0, 0, 0);
-  d.setMilliseconds(0);
-  return d;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
 }
 
-function getWeekDates(weekStart) {
+// Build 7 local Date objects (Mon–Sun) from a YYYY-MM-DD key
+function getWeekDates(weekKey) {
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart);
-    d.setDate(d.getDate() + i);
-    return d;
+    const [y, m, d] = weekKey.split('-').map(Number);
+    const date = new Date(y, m - 1, d + i); // local midnight
+    return date;
   });
 }
 
@@ -53,15 +55,13 @@ export default function Agenda() {
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(null);
 
-  const weekStart = getLocalWeekStart(weekOffset);
-  const weekDates = getWeekDates(weekStart);
+  const weekKey   = getWeekKey(weekOffset);
+  const weekDates = getWeekDates(weekKey);
 
   const fetchData = async (offset = weekOffset) => {
-    const ws = getLocalWeekStart(offset);
+    const wk = getWeekKey(offset);
     try {
-      const { data } = await axios.get('/api/agenda', {
-        params: { weekStart: ws.toISOString() }
-      });
+      const { data } = await axios.get('/api/agenda', { params: { weekKey: wk } });
       setSlots(data.slots);
       setMyBookings(data.myBookings);
       setPlan(data.plan);
@@ -79,9 +79,7 @@ export default function Agenda() {
   const handleBook = async (slotId) => {
     setBooking(slotId);
     try {
-      await axios.post(`/api/agenda/book/${slotId}`, {
-        weekStart: weekStart.toISOString()
-      });
+      await axios.post(`/api/agenda/book/${slotId}`, { weekKey });
       await fetchData();
     } catch (err) {
       alert(err.response?.data?.error || 'No se pudo reservar');
@@ -115,7 +113,7 @@ export default function Agenda() {
     .filter(({ dayOfWeek }) => slotsByDay[dayOfWeek]?.length > 0);
 
   const isCurrentWeek = weekOffset === 0;
-  const weekLabel = formatWeekLabel(weekStart);
+  const weekLabel = formatWeekLabel(weekDates[0]); // Mon of this week
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
