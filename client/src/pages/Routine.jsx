@@ -77,7 +77,19 @@ export default function Routine({ adminPlay = false }) {
     const url = adminPlay
       ? `/api/admin/exercises/${exerciseId}`
       : `/api/routines/exercises/${exerciseId}`;
-    try { await axios.patch(url, { [field]: value }); } catch {}
+    try {
+      await axios.patch(url, { [field]: value });
+      // Actualizar el estado en memoria para que el valor persista al re-renderizar
+      setRoutine(prev => ({
+        ...prev,
+        sections: prev.sections.map(s => ({
+          ...s,
+          exercises: s.exercises.map(ex =>
+            ex.id === exerciseId ? { ...ex, [field]: value } : ex
+          )
+        }))
+      }));
+    } catch {}
   }, [adminPlay]);
 
   const handleNext = async () => {
