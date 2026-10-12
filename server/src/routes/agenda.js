@@ -70,7 +70,6 @@ async function createMeetLink(username, slot, weekKey) {
         conferenceData: {
           createRequest: {
             requestId: `tryhard-${username}-${weekKey}-${slot.id}`,
-            conferenceSolutionKey: { type: 'hangoutsMeet' },
           },
         },
       },
