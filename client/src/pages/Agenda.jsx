@@ -222,17 +222,9 @@ export default function Agenda() {
                     {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
                   </p>
                   {meetLink ? (
-                    <a
-                      href={status === 'active' ? meetLink : undefined}
-                      onClick={status !== 'active' ? e => e.preventDefault() : undefined}
-                      target="_blank" rel="noopener noreferrer"
-                      className={`flex-1 text-center text-xs font-black px-3 py-2 rounded-xl transition-colors ${
-                        status === 'active'
-                          ? 'bg-brand-500 hover:bg-brand-400 text-white cursor-pointer'
-                          : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                      }`}
-                    >
-                      {status === 'future' ? `Disponible a las ${b.slot.time}` : 'Unirse al Meet'}
+                    <a href={meetLink} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 text-center bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-3 py-2 rounded-xl transition-colors">
+                      Unirse al Meet
                     </a>
                   ) : <span className="flex-1" />}
                   <button onClick={() => handleCancel(b.id)}
@@ -279,8 +271,7 @@ export default function Agenda() {
                             <p className={`font-black text-sm ${myBooking ? 'text-brand-300' : 'text-white'}`}>
                               {slot.time}
                             </p>
-                            {myBooking && (myBooking.meetUrl || slot.googleMeetUrl) &&
-                              getMeetStatus(date, slot.time, now) === 'active' && (
+                            {myBooking && (myBooking.meetUrl || slot.googleMeetUrl) && (
                               <a href={myBooking.meetUrl || slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
                                 className="text-brand-400 text-xs hover:text-brand-300">
                                 Meet →
