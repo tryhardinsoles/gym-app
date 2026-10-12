@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import Sidebar from '../components/Sidebar.jsx';
@@ -44,6 +44,17 @@ function isPast(date, time) {
   return slotDate < new Date();
 }
 
+// Returns 'active' | 'soon' | 'past' | 'future'
+function getMeetStatus(date, time, now) {
+  const [h, m] = time.split(':').map(Number);
+  const slotDate = new Date(date);
+  slotDate.setHours(h, m, 0, 0);
+  const diff = now - slotDate; // ms; positive = after start
+  if (diff >= -5 * 60 * 1000 && diff <= 60 * 60 * 1000) return 'active';
+  if (diff < -15 * 60 * 1000) return 'future';
+  return 'past';
+}
+
 export default function Agenda() {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -54,6 +65,12 @@ export default function Agenda() {
   const [maxCalls, setMaxCalls] = useState(1);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(null);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const weekKey   = getWeekKey(weekOffset);
   const weekDates = getWeekDates(weekKey);
@@ -192,23 +209,39 @@ export default function Agenda() {
           </p>
           <div className="space-y-2">
             {myBookings.map(b => (
-              <div key={b.id} className="card flex items-center justify-between gap-3 py-3 px-4">
-                <p className="text-white font-bold text-sm shrink-0">
-                  {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
-                </p>
-                {(b.meetUrl || b.slot.googleMeetUrl) ? (
-                  <a href={b.meetUrl || b.slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 text-center bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-3 py-2 rounded-xl transition-colors">
-                    Unirse al Meet
-                  </a>
-                ) : (
-                  <span className="flex-1" />
-                )}
-                <button onClick={() => handleCancel(b.id)}
-                  className="shrink-0 text-xs text-gray-500 hover:text-red-400 font-medium px-3 py-1.5 rounded-xl hover:bg-gray-800 transition-colors">
-                  Cancelar
-                </button>
-              </div>
+              {(() => {
+                const meetLink = b.meetUrl || b.slot.googleMeetUrl;
+                const bDate = weekDates[b.slot.dayOfWeek === 0 ? 6 : b.slot.dayOfWeek - 1];
+                const status = meetLink ? getMeetStatus(bDate, b.slot.time, now) : null;
+                return (
+                  <div key={b.id} className="card flex items-center justify-between gap-3 py-3 px-4">
+                    <p className="text-white font-bold text-sm shrink-0">
+                      {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
+                    </p>
+                    {meetLink && status === 'active' && (
+                      <a href={meetLink} target="_blank" rel="noopener noreferrer"
+                        className="flex-1 text-center bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-3 py-2 rounded-xl transition-colors">
+                        Unirse al Meet
+                      </a>
+                    )}
+                    {meetLink && status === 'future' && (
+                      <span className="flex-1 text-center text-gray-600 text-xs font-medium">
+                        Disponible a las {b.slot.time}
+                      </span>
+                    )}
+                    {meetLink && status === 'past' && (
+                      <span className="flex-1 text-center text-gray-700 text-xs font-medium">
+                        Llamada finalizada
+                      </span>
+                    )}
+                    {!meetLink && <span className="flex-1" />}
+                    <button onClick={() => handleCancel(b.id)}
+                      className="shrink-0 text-xs text-gray-500 hover:text-red-400 font-medium px-3 py-1.5 rounded-xl hover:bg-gray-800 transition-colors">
+                      Cancelar
+                    </button>
+                  </div>
+                );
+              })()}
             ))}
           </div>
         </div>
