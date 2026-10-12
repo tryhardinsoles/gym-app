@@ -50,7 +50,7 @@ function getMeetStatus(date, time, now) {
   const slotDate = new Date(date);
   slotDate.setHours(h, m, 0, 0);
   const diff = now - slotDate; // ms; positive = after start
-  if (diff >= -5 * 60 * 1000 && diff <= 60 * 60 * 1000) return 'active';
+  if (diff >= -5 * 60 * 1000 && diff <= 40 * 60 * 1000) return 'active';
   if (diff < -5 * 60 * 1000) return 'future';
   return 'past';
 }
