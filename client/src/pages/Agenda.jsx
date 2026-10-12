@@ -208,41 +208,39 @@ export default function Agenda() {
             Mis reservas
           </p>
           <div className="space-y-2">
-            {myBookings.map(b => (
-              {(() => {
-                const meetLink = b.meetUrl || b.slot.googleMeetUrl;
-                const bDate = weekDates[b.slot.dayOfWeek === 0 ? 6 : b.slot.dayOfWeek - 1];
-                const status = meetLink ? getMeetStatus(bDate, b.slot.time, now) : null;
-                return (
-                  <div key={b.id} className="card flex items-center justify-between gap-3 py-3 px-4">
-                    <p className="text-white font-bold text-sm shrink-0">
-                      {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
-                    </p>
-                    {meetLink && status === 'active' && (
-                      <a href={meetLink} target="_blank" rel="noopener noreferrer"
-                        className="flex-1 text-center bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-3 py-2 rounded-xl transition-colors">
-                        Unirse al Meet
-                      </a>
-                    )}
-                    {meetLink && status === 'future' && (
-                      <span className="flex-1 text-center text-gray-600 text-xs font-medium">
-                        Disponible a las {b.slot.time}
-                      </span>
-                    )}
-                    {meetLink && status === 'past' && (
-                      <span className="flex-1 text-center text-gray-700 text-xs font-medium">
-                        Llamada finalizada
-                      </span>
-                    )}
-                    {!meetLink && <span className="flex-1" />}
-                    <button onClick={() => handleCancel(b.id)}
-                      className="shrink-0 text-xs text-gray-500 hover:text-red-400 font-medium px-3 py-1.5 rounded-xl hover:bg-gray-800 transition-colors">
-                      Cancelar
-                    </button>
-                  </div>
-                );
-              })()}
-            ))}
+            {myBookings.map(b => {
+              const meetLink = b.meetUrl || b.slot.googleMeetUrl;
+              const bDate = weekDates[b.slot.dayOfWeek === 0 ? 6 : b.slot.dayOfWeek - 1];
+              const status = meetLink ? getMeetStatus(bDate, b.slot.time, now) : null;
+              return (
+                <div key={b.id} className="card flex items-center justify-between gap-3 py-3 px-4">
+                  <p className="text-white font-bold text-sm shrink-0">
+                    {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
+                  </p>
+                  {meetLink && status === 'active' && (
+                    <a href={meetLink} target="_blank" rel="noopener noreferrer"
+                      className="flex-1 text-center bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-3 py-2 rounded-xl transition-colors">
+                      Unirse al Meet
+                    </a>
+                  )}
+                  {meetLink && status === 'future' && (
+                    <span className="flex-1 text-center text-gray-600 text-xs font-medium">
+                      Disponible a las {b.slot.time}
+                    </span>
+                  )}
+                  {meetLink && status === 'past' && (
+                    <span className="flex-1 text-center text-gray-700 text-xs font-medium">
+                      Llamada finalizada
+                    </span>
+                  )}
+                  {!meetLink && <span className="flex-1" />}
+                  <button onClick={() => handleCancel(b.id)}
+                    className="shrink-0 text-xs text-gray-500 hover:text-red-400 font-medium px-3 py-1.5 rounded-xl hover:bg-gray-800 transition-colors">
+                    Cancelar
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
