@@ -280,7 +280,8 @@ export default function Agenda() {
                             <p className={`font-black text-sm ${myBooking ? 'text-brand-300' : 'text-white'}`}>
                               {slot.time}
                             </p>
-                            {myBooking && (myBooking.meetUrl || slot.googleMeetUrl) && (
+                            {myBooking && (myBooking.meetUrl || slot.googleMeetUrl) &&
+                              getMeetStatus(date, slot.time, now) === 'active' && (
                               <a href={myBooking.meetUrl || slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
                                 className="text-brand-400 text-xs hover:text-brand-300">
                                 Meet →
