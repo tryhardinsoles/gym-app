@@ -61,6 +61,7 @@ export default function Agenda() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [slots, setSlots] = useState([]);
   const [myBookings, setMyBookings] = useState([]);
+  const [bookedSlotIds, setBookedSlotIds] = useState([]);
   const [plan, setPlan] = useState('start');
   const [maxCalls, setMaxCalls] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -81,6 +82,7 @@ export default function Agenda() {
       const { data } = await axios.get('/api/agenda', { params: { weekKey: wk } });
       setSlots(data.slots);
       setMyBookings(data.myBookings);
+      setBookedSlotIds(data.bookedSlotIds || []);
       setPlan(data.plan);
       setMaxCalls(data.maxCalls);
     } finally {
@@ -268,11 +270,12 @@ export default function Agenda() {
                   <div className="space-y-2">
                     {daySlots.map(slot => {
                       const myBooking = myBookings.find(b => b.slotId === slot.id);
+                      const takenByOther = !myBooking && bookedSlotIds.includes(slot.id);
                       const past = isPast(date, slot.time);
                       return (
                         <div key={slot.id} className={`card flex items-center justify-between py-3 px-4 transition-all ${
                           myBooking ? 'border border-brand-500/30 bg-brand-500/5' : ''
-                        } ${past && !myBooking ? 'opacity-35' : ''}`}>
+                        } ${(past || takenByOther) && !myBooking ? 'opacity-35' : ''}`}>
                           <div>
                             <p className={`font-black text-sm ${myBooking ? 'text-brand-300' : 'text-white'}`}>
                               {slot.time}
@@ -290,6 +293,8 @@ export default function Agenda() {
                             </span>
                           ) : past ? (
                             <span className="text-gray-600 text-xs font-medium">Pasado</span>
+                          ) : takenByOther ? (
+                            <span className="text-gray-500 text-xs font-medium">Reservado</span>
                           ) : !canBook ? (
                             <span className="text-gray-600 text-xs font-medium">Límite alcanzado</span>
                           ) : (

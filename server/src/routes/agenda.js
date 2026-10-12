@@ -130,7 +130,7 @@ router.get('/', requireAuth, async (req, res) => {
   const plan = user?.plan || 'start';
   const maxCalls = PLAN_LIMITS[plan] ?? 1;
 
-  const [slots, myBookings] = await Promise.all([
+  const [slots, myBookings, allBookings] = await Promise.all([
     prisma.agendaSlot.findMany({
       where: { isActive: true },
       orderBy: [{ dayOfWeek: 'asc' }, { time: 'asc' }]
@@ -138,10 +138,15 @@ router.get('/', requireAuth, async (req, res) => {
     prisma.agendaBooking.findMany({
       where: { userId: req.user.id, weekStart },
       include: { slot: true }
+    }),
+    prisma.agendaBooking.findMany({
+      where: { weekStart },
+      select: { slotId: true }
     })
   ]);
 
-  res.json({ slots, myBookings, plan, maxCalls, weekKey });
+  const bookedSlotIds = allBookings.map(b => b.slotId);
+  res.json({ slots, myBookings, plan, maxCalls, weekKey, bookedSlotIds });
 });
 
 router.post('/book/:slotId', requireAuth, async (req, res) => {
