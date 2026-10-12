@@ -75,11 +75,9 @@ async function createMeetLink(username, slot, weekKey) {
       },
     });
 
-    const meetLink = response.data.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri ?? null;
-    console.log('Google Meet creado:', meetLink, '| conferenceData:', JSON.stringify(response.data.conferenceData));
-    return meetLink;
+    return response.data.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri ?? null;
   } catch (err) {
-    console.error('Error creando Google Meet:', err.message, err.response?.data);
+    console.error('Error creando Google Meet:', err.message);
     return null;
   }
 }

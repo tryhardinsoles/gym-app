@@ -192,20 +192,20 @@ export default function Agenda() {
           </p>
           <div className="space-y-2">
             {myBookings.map(b => (
-              <div key={b.id} className="card flex items-center justify-between py-3 px-4">
-                <div>
-                  <p className="text-white font-bold text-sm">
-                    {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
-                  </p>
-                  {(b.meetUrl || b.slot.googleMeetUrl) && (
-                    <a href={b.meetUrl || b.slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
-                      className="text-brand-400 text-xs font-semibold hover:text-brand-300 transition-colors">
-                      Abrir Google Meet →
-                    </a>
-                  )}
-                </div>
+              <div key={b.id} className="card flex items-center justify-between gap-3 py-3 px-4">
+                <p className="text-white font-bold text-sm shrink-0">
+                  {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
+                </p>
+                {(b.meetUrl || b.slot.googleMeetUrl) ? (
+                  <a href={b.meetUrl || b.slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 text-center bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-3 py-2 rounded-xl transition-colors">
+                    Unirse al Meet
+                  </a>
+                ) : (
+                  <span className="flex-1" />
+                )}
                 <button onClick={() => handleCancel(b.id)}
-                  className="text-xs text-gray-500 hover:text-red-400 font-medium px-3 py-1.5 rounded-xl hover:bg-gray-800 transition-colors">
+                  className="shrink-0 text-xs text-gray-500 hover:text-red-400 font-medium px-3 py-1.5 rounded-xl hover:bg-gray-800 transition-colors">
                   Cancelar
                 </button>
               </div>
