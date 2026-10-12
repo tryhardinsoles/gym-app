@@ -50,7 +50,7 @@ function getMeetStatus(date, time, now) {
   const slotDate = new Date(date);
   slotDate.setHours(h, m, 0, 0);
   const diff = now - slotDate; // ms; positive = after start
-  if (diff >= -5 * 60 * 1000 && diff <= 40 * 60 * 1000) return 'active';
+  if (diff >= -6 * 60 * 1000 && diff <= 40 * 60 * 1000) return 'active';
   if (diff < -5 * 60 * 1000) return 'future';
   return 'past';
 }
@@ -69,7 +69,7 @@ export default function Agenda() {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 30_000);
+    const id = setInterval(() => setNow(new Date()), 10_000);
     return () => clearInterval(id);
   }, []);
 
