@@ -221,23 +221,20 @@ export default function Agenda() {
                   <p className="text-white font-bold text-sm shrink-0">
                     {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
                   </p>
-                  {meetLink && status === 'active' && (
-                    <a href={meetLink} target="_blank" rel="noopener noreferrer"
-                      className="flex-1 text-center bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-3 py-2 rounded-xl transition-colors">
-                      Unirse al Meet
+                  {meetLink ? (
+                    <a
+                      href={status === 'active' ? meetLink : undefined}
+                      onClick={status !== 'active' ? e => e.preventDefault() : undefined}
+                      target="_blank" rel="noopener noreferrer"
+                      className={`flex-1 text-center text-xs font-black px-3 py-2 rounded-xl transition-colors ${
+                        status === 'active'
+                          ? 'bg-brand-500 hover:bg-brand-400 text-white cursor-pointer'
+                          : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      {status === 'future' ? `Disponible a las ${b.slot.time}` : 'Unirse al Meet'}
                     </a>
-                  )}
-                  {meetLink && status === 'future' && (
-                    <span className="flex-1 text-center text-gray-600 text-xs font-medium">
-                      Disponible a las {b.slot.time}
-                    </span>
-                  )}
-                  {meetLink && status === 'past' && (
-                    <span className="flex-1 text-center text-gray-700 text-xs font-medium">
-                      Llamada finalizada
-                    </span>
-                  )}
-                  {!meetLink && <span className="flex-1" />}
+                  ) : <span className="flex-1" />}
                   <button onClick={() => handleCancel(b.id)}
                     className="shrink-0 text-xs text-gray-500 hover:text-red-400 font-medium px-3 py-1.5 rounded-xl hover:bg-gray-800 transition-colors">
                     Cancelar
