@@ -221,11 +221,23 @@ export default function Agenda() {
                   <p className="text-white font-bold text-sm shrink-0">
                     {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
                   </p>
-                  {meetLink ? (
-                    <span className="flex-1 text-center bg-gray-800 text-gray-500 text-xs font-black px-3 py-2 rounded-xl cursor-not-allowed select-none">
-                      Unirse al Meet
-                    </span>
-                  ) : <span className="flex-1" />}
+                  {meetLink ? (() => {
+                    const [h, m] = b.slot.time.split(':').map(Number);
+                    const slotDate = new Date(bDate);
+                    slotDate.setHours(h, m, 0, 0);
+                    const diff = now - slotDate;
+                    const active = diff >= -6 * 60 * 1000 && diff <= 40 * 60 * 1000;
+                    return active ? (
+                      <a href={meetLink} target="_blank" rel="noopener noreferrer"
+                        className="flex-1 text-center bg-brand-500 hover:bg-brand-400 text-white text-xs font-black px-3 py-2 rounded-xl transition-colors">
+                        Unirse al Meet
+                      </a>
+                    ) : (
+                      <span className="flex-1 text-center bg-gray-800 text-gray-500 text-xs font-black px-3 py-2 rounded-xl cursor-not-allowed select-none">
+                        Unirse al Meet
+                      </span>
+                    );
+                  })() : <span className="flex-1" />}
                   <button onClick={() => handleCancel(b.id)}
                     className="shrink-0 text-xs text-gray-500 hover:text-red-400 font-medium px-3 py-1.5 rounded-xl hover:bg-gray-800 transition-colors">
                     Cancelar
