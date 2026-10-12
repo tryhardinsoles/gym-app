@@ -66,12 +66,14 @@ export default function Agenda() {
   const [maxCalls, setMaxCalls] = useState(1);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(null);
-  const [now, setNow] = useState(() => new Date());
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 10_000);
+    const id = setInterval(() => setTick(t => t + 1), 10_000);
     return () => clearInterval(id);
   }, []);
+
+  const now = new Date();
 
   const weekKey   = getWeekKey(weekOffset);
   const weekDates = getWeekDates(weekKey);
