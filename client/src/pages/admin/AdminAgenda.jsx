@@ -301,6 +301,12 @@ export default function AdminAgenda() {
                       {b.user.plan === 'performance' ? 'Performance' : 'Start'}
                     </span>
                   </p>
+                  {b.meetUrl && (
+                    <a href={b.meetUrl} target="_blank" rel="noopener noreferrer"
+                      className="text-brand-400 text-xs hover:text-brand-300 font-semibold">
+                      Meet →
+                    </a>
+                  )}
                 </div>
                 <span className="bg-brand-500/20 text-brand-400 text-xs font-bold px-2 py-0.5 rounded-full">
                   Reservado

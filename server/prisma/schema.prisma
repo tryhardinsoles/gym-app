@@ -41,6 +41,7 @@ model AgendaBooking {
   slotId    String
   slot      AgendaSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
   weekStart DateTime   // Monday 00:00:00 UTC of the booked week
+  meetUrl   String?
   createdAt DateTime   @default(now())
 
   @@unique([slotId, weekStart])

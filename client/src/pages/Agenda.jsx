@@ -197,8 +197,8 @@ export default function Agenda() {
                   <p className="text-white font-bold text-sm">
                     {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
                   </p>
-                  {b.slot.googleMeetUrl && (
-                    <a href={b.slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
+                  {(b.meetUrl || b.slot.googleMeetUrl) && (
+                    <a href={b.meetUrl || b.slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
                       className="text-brand-400 text-xs font-semibold hover:text-brand-300 transition-colors">
                       Abrir Google Meet →
                     </a>
@@ -246,8 +246,8 @@ export default function Agenda() {
                             <p className={`font-black text-sm ${myBooking ? 'text-brand-300' : 'text-white'}`}>
                               {slot.time}
                             </p>
-                            {myBooking && slot.googleMeetUrl && (
-                              <a href={slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
+                            {myBooking && (myBooking.meetUrl || slot.googleMeetUrl) && (
+                              <a href={myBooking.meetUrl || slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
                                 className="text-brand-400 text-xs hover:text-brand-300">
                                 Meet →
                               </a>

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { Resend } from 'resend';
+import { google } from 'googleapis';
 import { requireAuth } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/admin.js';
 
@@ -28,7 +29,61 @@ function getServerWeekKey() {
   return d.toISOString().slice(0, 10); // "YYYY-MM-DD"
 }
 
-async function sendBookingEmail(username, slot, weekKey) {
+function getCalendarClient() {
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const key = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  if (!email || !key) return null;
+  const auth = new google.auth.JWT({
+    email,
+    key,
+    scopes: ['https://www.googleapis.com/auth/calendar'],
+  });
+  return google.calendar({ version: 'v3', auth });
+}
+
+async function createMeetLink(username, slot, weekKey) {
+  const calendarId = process.env.GOOGLE_CALENDAR_ID;
+  if (!calendarId) return null;
+  const calendar = getCalendarClient();
+  if (!calendar) return null;
+
+  try {
+    const weekMonday = new Date(`${weekKey}T00:00:00.000Z`);
+    const slotDate = new Date(weekMonday);
+    const offset = slot.dayOfWeek === 0 ? 6 : slot.dayOfWeek - 1;
+    slotDate.setUTCDate(slotDate.getUTCDate() + offset);
+
+    const [h, m] = slot.time.split(':').map(Number);
+    const startDate = new Date(slotDate);
+    startDate.setUTCHours(h, m, 0, 0);
+    const endDate = new Date(startDate);
+    endDate.setUTCMinutes(endDate.getUTCMinutes() + 60);
+
+    const response = await calendar.events.insert({
+      calendarId,
+      conferenceDataVersion: 1,
+      requestBody: {
+        summary: `Llamada Tryhard — ${username}`,
+        description: `Llamada de seguimiento con ${username}`,
+        start: { dateTime: startDate.toISOString(), timeZone: 'America/Argentina/Buenos_Aires' },
+        end:   { dateTime: endDate.toISOString(),   timeZone: 'America/Argentina/Buenos_Aires' },
+        conferenceData: {
+          createRequest: {
+            requestId: `tryhard-${username}-${weekKey}-${slot.id}`,
+            conferenceSolutionKey: { type: 'hangoutsMeet' },
+          },
+        },
+      },
+    });
+
+    return response.data.conferenceData?.entryPoints?.find(ep => ep.entryPointType === 'video')?.uri ?? null;
+  } catch (err) {
+    console.error('Error creando Google Meet:', err.message);
+    return null;
+  }
+}
+
+async function sendBookingEmail(username, slot, weekKey, meetUrl) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return; // silently skip if not configured
 
@@ -52,7 +107,7 @@ async function sendBookingEmail(username, slot, weekKey) {
           <p><strong>Alumno:</strong> ${username}</p>
           <p><strong>Día:</strong> ${dayName} ${dateStr}</p>
           <p><strong>Hora:</strong> ${slot.time} hs</p>
-          ${slot.googleMeetUrl ? `<p><strong>Meet:</strong> <a href="${slot.googleMeetUrl}">${slot.googleMeetUrl}</a></p>` : ''}
+          ${meetUrl ? `<p><strong>Meet:</strong> <a href="${meetUrl}">${meetUrl}</a></p>` : ''}
           <hr style="border:none;border-top:1px solid #333;margin:20px 0">
           <p style="color:#888;font-size:12px">Tryhard Training · agenda automática</p>
         </div>
@@ -115,13 +170,16 @@ router.post('/book/:slotId', requireAuth, async (req, res) => {
   }
 
   try {
+    // Generate Meet link before creating booking (fails gracefully)
+    const meetUrl = await createMeetLink(user.username, slot, weekKey);
+
     const booking = await prisma.agendaBooking.create({
-      data: { userId: req.user.id, slotId: req.params.slotId, weekStart },
+      data: { userId: req.user.id, slotId: req.params.slotId, weekStart, meetUrl: meetUrl || null },
       include: { slot: true }
     });
 
     // Fire-and-forget email
-    sendBookingEmail(user.username, slot, weekKey);
+    sendBookingEmail(user.username, slot, weekKey, meetUrl);
 
     res.json(booking);
   } catch {
