@@ -44,14 +44,14 @@ function isPast(date, time) {
   return slotDate < new Date();
 }
 
-// Returns 'active' | 'soon' | 'past' | 'future'
+// Returns 'active' | 'future' | 'past'
 function getMeetStatus(date, time, now) {
   const [h, m] = time.split(':').map(Number);
   const slotDate = new Date(date);
   slotDate.setHours(h, m, 0, 0);
   const diff = now - slotDate; // ms; positive = after start
   if (diff >= -5 * 60 * 1000 && diff <= 60 * 60 * 1000) return 'active';
-  if (diff < -15 * 60 * 1000) return 'future';
+  if (diff < -5 * 60 * 1000) return 'future';
   return 'past';
 }
 
