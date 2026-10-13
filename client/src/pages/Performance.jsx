@@ -27,11 +27,16 @@ const CustomTooltipVolume = ({ active, payload, label }) => {
   );
 };
 
+function addClassLabels(logs) {
+  return logs.map((l, i) => ({ ...l, classLabel: `Día ${i + 1}` }));
+}
+
 export default function Performance() {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [data, setData] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [xMode, setXMode] = useState('date'); // 'date' | 'class'
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,8 +47,9 @@ export default function Performance() {
   }, []);
 
   const exercise = data?.exercises?.find(e => e.id === selected);
-  const strengthLogs = exercise?.logs?.filter(l => l.weight != null) ?? [];
-  const volumeLogs = exercise?.logs?.filter(l => l.volume != null) ?? [];
+  const strengthLogs = addClassLabels(exercise?.logs?.filter(l => l.weight != null) ?? []);
+  const volumeLogs   = addClassLabels(exercise?.logs?.filter(l => l.volume != null) ?? []);
+  const xKey = xMode === 'date' ? 'date' : 'classLabel';
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -132,6 +138,30 @@ export default function Performance() {
 
           {exercise && (
             <div className="mt-5 space-y-4">
+              {/* X-axis toggle */}
+              <div className="flex items-center gap-1 bg-gray-900 rounded-2xl p-1 w-fit">
+                <button
+                  onClick={() => setXMode('date')}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                    xMode === 'date'
+                      ? 'bg-gray-700 text-white'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  Fecha
+                </button>
+                <button
+                  onClick={() => setXMode('class')}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                    xMode === 'class'
+                      ? 'bg-gray-700 text-white'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  N° de clase
+                </button>
+              </div>
+
               {/* Strength chart */}
               {strengthLogs.length > 0 && (
                 <div className="card p-4">
@@ -144,7 +174,7 @@ export default function Performance() {
                     <LineChart data={strengthLogs} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
                       <XAxis
-                        dataKey="date"
+                        dataKey={xKey}
                         tick={{ fill: '#555', fontSize: 10 }}
                         axisLine={{ stroke: '#222' }}
                         tickLine={false}
@@ -183,7 +213,7 @@ export default function Performance() {
                     <BarChart data={volumeLogs} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
                       <XAxis
-                        dataKey="date"
+                        dataKey={xKey}
                         tick={{ fill: '#555', fontSize: 10 }}
                         axisLine={{ stroke: '#222' }}
                         tickLine={false}
