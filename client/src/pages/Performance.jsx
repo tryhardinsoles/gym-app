@@ -183,7 +183,7 @@ export default function Performance() {
                         tick={{ fill: '#555', fontSize: 10 }}
                         axisLine={false}
                         tickLine={false}
-                        domain={['auto', 'auto']}
+                        domain={[dataMin => Math.max(0, Math.floor(dataMin * 0.85)), dataMax => Math.ceil(dataMax * 1.1)]}
                       />
                       <Tooltip content={<CustomTooltipStrength />} cursor={{ stroke: '#333' }} />
                       <Line
@@ -222,7 +222,7 @@ export default function Performance() {
                         tick={{ fill: '#555', fontSize: 10 }}
                         axisLine={false}
                         tickLine={false}
-                        domain={[0, 'auto']}
+                        domain={[dataMin => Math.max(0, Math.floor(dataMin * 0.85)), dataMax => Math.ceil(dataMax * 1.1)]}
                       />
                       <Tooltip content={<CustomTooltipVolume />} cursor={{ fill: 'rgba(59,130,246,0.05)' }} />
                       <Bar
