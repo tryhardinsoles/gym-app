@@ -49,8 +49,7 @@ export default function Sidebar({ isOpen, onClose, user, logout }) {
       label: 'Performance',
       icon: <IconPerformance />,
       path: '/performance',
-      locked: true,
-      badge: 'Próximamente',
+      locked: false,
     },
   ];
 

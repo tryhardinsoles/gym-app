@@ -19,6 +19,7 @@ model User {
   workoutSessions WorkoutSession[]
   wellbeingLogs   WellbeingLog[]
   agendaBookings  AgendaBooking[]
+  exerciseLogs    ExerciseLog[]
 }
 
 model AgendaSlot {
@@ -83,6 +84,7 @@ model Exercise {
   order       Int
 
   feedbacks ExerciseFeedback[]
+  logs      ExerciseLog[]
 }
 
 model ExerciseFeedback {
@@ -106,7 +108,25 @@ model WorkoutSession {
   completedAt DateTime?
   createdAt   DateTime  @default(now())
 
-  feedbacks ExerciseFeedback[]
+  feedbacks    ExerciseFeedback[]
+  exerciseLogs ExerciseLog[]
+}
+
+model ExerciseLog {
+  id           String         @id @default(cuid())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId   String
+  exercise     Exercise       @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  sessionId    String
+  session      WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseName String
+  weight       Float?
+  reps         Int?
+  series       Int
+  loggedAt     DateTime
+
+  @@unique([exerciseId, sessionId])
 }
 
 model WellbeingLog {
