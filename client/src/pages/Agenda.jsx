@@ -282,12 +282,6 @@ export default function Agenda() {
                             <p className={`font-black text-sm ${myBooking ? 'text-brand-300' : 'text-white'}`}>
                               {slot.time}
                             </p>
-                            {myBooking && (myBooking.meetUrl || slot.googleMeetUrl) && (
-                              <a href={myBooking.meetUrl || slot.googleMeetUrl} target="_blank" rel="noopener noreferrer"
-                                className="text-brand-400 text-xs hover:text-brand-300">
-                                Meet →
-                              </a>
-                            )}
                           </div>
                           {myBooking ? (
                             <span className="bg-brand-500/20 text-brand-400 text-xs font-bold px-3 py-1 rounded-full">
