@@ -27,15 +27,16 @@ router.get('/', requireAuth, async (req, res) => {
 
   const exerciseMap = new Map();
   for (const log of logs) {
-    if (!exerciseMap.has(log.exerciseId)) {
-      exerciseMap.set(log.exerciseId, {
-        id: log.exerciseId,
+    const key = log.exerciseName.toLowerCase().trim();
+    if (!exerciseMap.has(key)) {
+      exerciseMap.set(key, {
+        id: key,
         name: log.exerciseName,
         logs: [],
       });
     }
     const volume = log.reps != null ? log.reps * log.series : null;
-    exerciseMap.get(log.exerciseId).logs.push({
+    exerciseMap.get(key).logs.push({
       date: formatDate(log.loggedAt),
       weight: log.weight,
       volume,
