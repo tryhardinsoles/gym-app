@@ -17,20 +17,25 @@ export default function Home() {
   const [saved, setSaved] = useState(false);
   const [lastCompleted, setLastCompleted] = useState(null);
   const [hasPending, setHasPending] = useState(null);
+  const [pendingCount, setPendingCount] = useState(0);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([
+  const fetchData = () => {
+    setLoading(true);
+    return Promise.all([
       axios.get('/api/workouts/last-completed'),
       axios.get('/api/routines/has-pending'),
       axios.get('/api/routines/history'),
     ]).then(([lastRes, pendingRes, historyRes]) => {
       setLastCompleted(lastRes.data?.completedAt ? new Date(lastRes.data.completedAt) : null);
       setHasPending(pendingRes.data.hasPending);
+      setPendingCount(pendingRes.data.pendingCount ?? 0);
       setHistory(historyRes.data || []);
     }).finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchData(); }, []);
 
   const recentlyCompleted = lastCompleted &&
     (Date.now() - lastCompleted.getTime() < EIGHT_HOURS_MS);
@@ -153,9 +158,18 @@ export default function Home() {
           <p className="text-brand-400 text-sm italic">— {quote.author}</p>
         </div>
 
-        <p className="text-gray-600 text-sm text-center px-4">
-          Tu profe va a cargarte nuevas rutinas pronto.
-        </p>
+        <div className="space-y-3 w-full">
+          <p className="text-gray-600 text-sm text-center px-4">
+            Tu profe va a cargarte nuevas rutinas pronto.
+          </p>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="w-full bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white font-bold py-3 rounded-2xl transition-colors text-sm disabled:opacity-50"
+          >
+            {loading ? 'Actualizando...' : '↻ Verificar nuevas rutinas'}
+          </button>
+        </div>
       </div>
 
       <HistorySection />
@@ -193,10 +207,15 @@ export default function Home() {
       {/* Start button */}
       <div className="mt-6">
         <button
-          className="btn-primary text-xl py-5"
+          className="btn-primary text-xl py-5 relative"
           onClick={() => navigate('/routine')}
         >
           Comenzar Rutina
+          {pendingCount > 1 && (
+            <span className="absolute -top-1.5 -right-1.5 bg-white text-brand-600 text-xs font-black w-5 h-5 rounded-full flex items-center justify-center">
+              {pendingCount}
+            </span>
+          )}
         </button>
       </div>
 

@@ -17,16 +17,31 @@ export default function UserDetail() {
   const [sheetSuccess, setSheetSuccess] = useState('');
   const [userPlan, setUserPlan] = useState('start');
   const [savingPlan, setSavingPlan] = useState(false);
+  const [miniStats, setMiniStats] = useState(null);
+  const [migrating, setMigrating] = useState(false);
 
   const fetchRoutines = async () => {
     try {
-      const [usersRes, routinesRes] = await Promise.all([
+      const [usersRes, routinesRes, statsRes] = await Promise.all([
         axios.get('/api/admin/users'),
-        axios.get(`/api/admin/users/${userId}/routines`)
+        axios.get(`/api/admin/users/${userId}/routines`),
+        axios.get(`/api/admin/users/${userId}/stats`).catch(() => ({ data: [] })),
       ]);
       const found = usersRes.data.find(u => u.id === userId);
       if (found) { setUsername(found.username); setUserPlan(found.plan || 'start'); }
       setRoutines(routinesRes.data);
+      const sessions = statsRes.data;
+      if (sessions.length > 0) {
+        const scores = sessions.filter(s => s.wellbeingScore).map(s => s.wellbeingScore);
+        const avgWell = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : null;
+        const rates = sessions.filter(s => s.feedbackSummary.total > 0).map(s =>
+          (s.feedbackSummary.green + s.feedbackSummary.yellow) / s.feedbackSummary.total * 100
+        );
+        const avgComp = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : null;
+        const lastSession = sessions[sessions.length - 1];
+        const lastDate = new Date(lastSession.completedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+        setMiniStats({ total: sessions.length, avgWell, avgComp, lastDate, lastRoutine: lastSession.routineName });
+      }
     } finally {
       setLoading(false);
     }
@@ -146,6 +161,20 @@ export default function UserDetail() {
         >
           Stats
         </button>
+        <button
+          className="bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-gray-300 font-bold px-5 py-3 rounded-2xl transition-colors text-xs"
+          disabled={migrating}
+          onClick={async () => {
+            setMigrating(true);
+            try {
+              const { data } = await axios.post('/api/admin/migrate-exercise-logs');
+              alert(`Migración completa: ${data.logsCreated} registros creados en ${data.migratedSessions} sesiones`);
+            } catch { alert('Error en la migración'); }
+            finally { setMigrating(false); }
+          }}
+        >
+          {migrating ? '...' : 'Migrar logs'}
+        </button>
       </div>
 
       <input
@@ -158,6 +187,39 @@ export default function UserDetail() {
 
       {importError && (
         <p className="text-red-400 text-sm bg-red-500/10 rounded-xl px-4 py-2 mb-4">{importError}</p>
+      )}
+
+      {/* Mini stats */}
+      {miniStats && (
+        <div className="card mb-4 mt-2">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold text-white">Estadísticas</p>
+            <button
+              onClick={() => navigate(`/admin/users/${userId}/stats`)}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              Ver detalle →
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="bg-gray-800/60 rounded-2xl p-2.5 text-center">
+              <p className="text-xl font-black text-white">{miniStats.total}</p>
+              <p className="text-gray-600 text-[10px]">sesiones</p>
+            </div>
+            <div className="bg-gray-800/60 rounded-2xl p-2.5 text-center">
+              <p className="text-xl font-black text-brand-400">{miniStats.avgWell ?? '—'}</p>
+              <p className="text-gray-600 text-[10px]">bienestar</p>
+            </div>
+            <div className="bg-gray-800/60 rounded-2xl p-2.5 text-center">
+              <p className="text-xl font-black text-blue-400">{miniStats.avgComp != null ? `${miniStats.avgComp}%` : '—'}</p>
+              <p className="text-gray-600 text-[10px]">completado</p>
+            </div>
+          </div>
+          <p className="text-gray-600 text-xs">
+            Última sesión: <span className="text-gray-400">{miniStats.lastDate}</span>
+            {' · '}<span className="text-gray-400">{miniStats.lastRoutine}</span>
+          </p>
+        </div>
       )}
 
       {/* Plan del alumno */}

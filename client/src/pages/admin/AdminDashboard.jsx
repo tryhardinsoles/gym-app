@@ -12,11 +12,15 @@ export default function AdminDashboard() {
   const [newUser, setNewUser] = useState({ username: '', password: '' });
   const [createError, setCreateError] = useState('');
   const [showPasswords, setShowPasswords] = useState(false);
+  const [today, setToday] = useState(null);
 
   const fetchUsers = () =>
     axios.get('/api/admin/users').then(r => setUsers(r.data)).finally(() => setLoading(false));
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    fetchUsers();
+    axios.get('/api/admin/today').then(r => setToday(r.data)).catch(() => {});
+  }, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -48,6 +52,47 @@ export default function AdminDashboard() {
           Salir
         </button>
       </div>
+
+      {/* Hoy */}
+      {today && (
+        <div className="card mb-6">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Hoy</p>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-gray-800/60 rounded-2xl p-3 text-center">
+              <p className="text-2xl font-black text-white">{today.completedToday.length}</p>
+              <p className="text-gray-500 text-xs mt-0.5">entrenaron</p>
+            </div>
+            <div className="bg-gray-800/60 rounded-2xl p-3 text-center">
+              <p className="text-2xl font-black text-brand-400">{today.bookingsToday.length}</p>
+              <p className="text-gray-500 text-xs mt-0.5">llamadas</p>
+            </div>
+          </div>
+          {today.completedToday.length > 0 && (
+            <div className="space-y-1.5 mb-3">
+              {today.completedToday.map(s => (
+                <div key={s.id} className="flex items-center justify-between bg-gray-800/40 rounded-xl px-3 py-1.5">
+                  <span className="text-white text-sm font-bold">{s.user.username}</span>
+                  <span className="text-gray-500 text-xs">{s.routine.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {today.bookingsToday.length > 0 && (
+            <div className="space-y-1.5 border-t border-gray-800 pt-3">
+              <p className="text-xs text-gray-600 mb-1.5">Llamadas programadas</p>
+              {today.bookingsToday.map(b => (
+                <div key={b.id} className="flex items-center justify-between bg-brand-500/5 border border-brand-500/20 rounded-xl px-3 py-1.5">
+                  <span className="text-brand-300 text-xs font-black">{b.slot.time}</span>
+                  <span className="text-white text-sm font-bold">{b.user.username}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {today.completedToday.length === 0 && today.bookingsToday.length === 0 && (
+            <p className="text-gray-600 text-sm text-center py-2">Sin actividad registrada hoy</p>
+          )}
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex gap-3 mb-3">

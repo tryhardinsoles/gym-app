@@ -67,6 +67,8 @@ export default function Agenda() {
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(null);
   const [tick, setTick] = useState(0);
+  const [pastBookings, setPastBookings] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 10_000);
@@ -96,6 +98,10 @@ export default function Agenda() {
     setLoading(true);
     fetchData(weekOffset);
   }, [weekOffset]);
+
+  useEffect(() => {
+    axios.get('/api/agenda/history').then(r => setPastBookings(r.data)).catch(() => {});
+  }, []);
 
   const handleBook = async (slotId) => {
     setBooking(slotId);
@@ -261,7 +267,7 @@ export default function Agenda() {
             <p className="text-gray-600 text-xs mt-1">Probá con la semana siguiente.</p>
           </div>
         ) : (
-          <div className="space-y-4 pb-10">
+          <div className="space-y-4">
             {activeDays.map(({ date, dayOfWeek }) => {
               const daySlots = slotsByDay[dayOfWeek] || [];
               return (
@@ -309,6 +315,41 @@ export default function Agenda() {
           </div>
         )}
       </div>
+
+      {/* Historial de llamadas pasadas */}
+      {pastBookings.length > 0 && (
+        <div className="mt-6 pb-10">
+          <button
+            onClick={() => setShowHistory(v => !v)}
+            className="w-full flex items-center justify-between mb-3 px-1"
+          >
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+              Historial de llamadas ({pastBookings.length})
+            </p>
+            <span className="text-gray-600 text-xs">{showHistory ? '▲' : '▼'}</span>
+          </button>
+          {showHistory && (
+            <div className="space-y-2">
+              {pastBookings.map(b => {
+                const [y, mo, d] = b.weekStart.slice(0, 10).split('-').map(Number);
+                const weekDate = new Date(y, mo - 1, d + (b.slot.dayOfWeek === 0 ? 6 : b.slot.dayOfWeek - 1));
+                const dateStr = weekDate.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+                return (
+                  <div key={b.id} className="card flex items-center justify-between py-3 px-4">
+                    <div>
+                      <p className="text-white font-bold text-sm">
+                        {DAY_FULL[b.slot.dayOfWeek]} {b.slot.time}
+                      </p>
+                      <p className="text-gray-500 text-xs mt-0.5">{dateStr}</p>
+                    </div>
+                    <span className="text-gray-600 text-xs">Completada</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

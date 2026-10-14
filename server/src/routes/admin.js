@@ -659,6 +659,83 @@ router.post('/users/:id/generate-routines', requireAdmin, async (req, res) => {
   res.json({ created: generatedRoutines.length, mes: nextMes });
 });
 
+// Resumen de actividad de hoy (sesiones completadas + llamadas programadas)
+router.get('/today', requireAdmin, async (req, res) => {
+  const now = new Date();
+  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const todayDayOfWeek = now.getDay();
+
+  // UTC Monday of current local week
+  const diffToMon = todayDayOfWeek === 0 ? -6 : 1 - todayDayOfWeek;
+  const weekMonday = new Date(now);
+  weekMonday.setDate(weekMonday.getDate() + diffToMon);
+  const y = weekMonday.getFullYear();
+  const m = String(weekMonday.getMonth() + 1).padStart(2, '0');
+  const d = String(weekMonday.getDate()).padStart(2, '0');
+  const weekStartUTC = new Date(`${y}-${m}-${d}T00:00:00.000Z`);
+
+  const [completedToday, bookingsToday] = await Promise.all([
+    prisma.workoutSession.findMany({
+      where: { completedAt: { gte: todayStart, lt: tomorrowStart }, user: { isAdmin: false } },
+      include: { user: { select: { username: true } }, routine: { select: { name: true } } },
+      orderBy: { completedAt: 'desc' }
+    }),
+    prisma.agendaBooking.findMany({
+      where: { weekStart: weekStartUTC, slot: { dayOfWeek: todayDayOfWeek } },
+      include: { user: { select: { username: true } }, slot: true },
+      orderBy: { slot: { time: 'asc' } }
+    })
+  ]);
+
+  res.json({ completedToday, bookingsToday });
+});
+
+// Migración retroactiva: crea ExerciseLogs para sesiones completadas que no tienen registros
+function _parseWeight(str) {
+  if (!str) return null;
+  const m = str.match(/(\d+\.?\d*)/);
+  return m ? parseFloat(m[1]) : null;
+}
+function _parseReps(str) {
+  if (!str) return null;
+  const m = str.match(/(\d+)/);
+  return m ? parseInt(m[1]) : null;
+}
+
+router.post('/migrate-exercise-logs', requireAdmin, async (req, res) => {
+  const sessions = await prisma.workoutSession.findMany({
+    where: { completedAt: { not: null }, exerciseLogs: { none: {} } },
+    include: {
+      routine: { include: { sections: { include: { exercises: true } } } }
+    }
+  });
+
+  let created = 0;
+  for (const session of sessions) {
+    const exercises = session.routine?.sections?.flatMap(s => s.exercises) ?? [];
+    if (exercises.length === 0) continue;
+    try {
+      const result = await prisma.exerciseLog.createMany({
+        data: exercises.map(ex => ({
+          userId: session.userId,
+          exerciseId: ex.id,
+          sessionId: session.id,
+          exerciseName: ex.name,
+          weight: _parseWeight(ex.weight),
+          reps: _parseReps(ex.repetitions),
+          series: ex.series,
+          loggedAt: session.completedAt,
+        })),
+        skipDuplicates: true,
+      });
+      created += result.count;
+    } catch {}
+  }
+
+  res.json({ migratedSessions: sessions.length, logsCreated: created });
+});
+
 // ── Google Sheets helpers ─────────────────────────────────────────────────────
 
 function sheetToCsvUrl(url) {

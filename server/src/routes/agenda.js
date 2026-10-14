@@ -200,6 +200,24 @@ router.delete('/booking/:id', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Historial de llamadas pasadas del alumno
+router.get('/history', requireAuth, async (req, res) => {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const currentWeekStart = new Date(now);
+  currentWeekStart.setUTCDate(currentWeekStart.getUTCDate() + diff);
+  currentWeekStart.setUTCHours(0, 0, 0, 0);
+
+  const bookings = await prisma.agendaBooking.findMany({
+    where: { userId: req.user.id, weekStart: { lt: currentWeekStart } },
+    include: { slot: true },
+    orderBy: { weekStart: 'desc' },
+    take: 30
+  });
+  res.json(bookings);
+});
+
 // ── Admin routes ──────────────────────────────────────────────────────────────
 
 router.get('/admin/slots', requireAdmin, async (_req, res) => {

@@ -51,6 +51,19 @@ export default function Performance() {
   const volumeLogs   = addClassLabels(exercise?.logs?.filter(l => l.volume != null) ?? []);
   const xKey = xMode === 'date' ? 'date' : 'classLabel';
 
+  const stats = (() => {
+    const wl = strengthLogs;
+    const vl = volumeLogs;
+    const sessions = exercise?.logs?.length ?? 0;
+    const maxWeight = wl.length ? Math.max(...wl.map(l => l.weight)) : null;
+    const avgWeight = wl.length ? (wl.reduce((a, b) => a + b.weight, 0) / wl.length).toFixed(1) : null;
+    const weightPct = wl.length >= 2
+      ? Math.round(((wl[wl.length - 1].weight - wl[0].weight) / wl[0].weight) * 100)
+      : null;
+    const maxVolume = vl.length ? Math.max(...vl.map(l => l.volume)) : null;
+    return { sessions, maxWeight, avgWeight, weightPct, maxVolume };
+  })();
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
@@ -138,6 +151,44 @@ export default function Performance() {
 
           {exercise && (
             <div className="mt-5 space-y-4">
+              {/* Stats row */}
+              <div className="grid grid-cols-4 gap-2">
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
+                  <p className="text-lg font-black text-white">{stats.sessions}</p>
+                  <p className="text-gray-600 text-[10px] mt-0.5">sesiones</p>
+                </div>
+                {stats.maxWeight != null && (
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
+                    <p className="text-lg font-black text-brand-400">{stats.maxWeight}</p>
+                    <p className="text-gray-600 text-[10px] mt-0.5">kg máx</p>
+                  </div>
+                )}
+                {stats.avgWeight != null && (
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
+                    <p className="text-lg font-black text-white">{stats.avgWeight}</p>
+                    <p className="text-gray-600 text-[10px] mt-0.5">kg prom</p>
+                  </div>
+                )}
+                {stats.weightPct != null && (
+                  <div className={`border rounded-2xl p-3 text-center ${
+                    stats.weightPct >= 0
+                      ? 'bg-green-500/10 border-green-500/20'
+                      : 'bg-red-500/10 border-red-500/20'
+                  }`}>
+                    <p className={`text-lg font-black ${stats.weightPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {stats.weightPct >= 0 ? '+' : ''}{stats.weightPct}%
+                    </p>
+                    <p className="text-gray-600 text-[10px] mt-0.5">progreso</p>
+                  </div>
+                )}
+                {stats.maxVolume != null && stats.weightPct == null && (
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
+                    <p className="text-lg font-black text-blue-400">{stats.maxVolume}</p>
+                    <p className="text-gray-600 text-[10px] mt-0.5">vol máx</p>
+                  </div>
+                )}
+              </div>
+
               {/* X-axis toggle */}
               <div className="flex items-center gap-1 bg-gray-900 rounded-2xl p-1 w-fit">
                 <button

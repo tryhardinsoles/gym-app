@@ -95,11 +95,15 @@ router.get('/current', requireAuth, async (req, res) => {
 
 // Solo verifica si hay rutina pendiente, sin crear sesión
 router.get('/has-pending', requireAuth, async (req, res) => {
-  const routine = await prisma.routine.findFirst({
-    where: { userId: req.user.id, completedAt: null },
-    select: { id: true }
-  });
-  res.json({ hasPending: !!routine });
+  const [routine, pendingCount] = await Promise.all([
+    prisma.routine.findFirst({
+      where: { userId: req.user.id, completedAt: null },
+      orderBy: { order: 'asc' },
+      select: { id: true }
+    }),
+    prisma.routine.count({ where: { userId: req.user.id, completedAt: null } })
+  ]);
+  res.json({ hasPending: !!routine, pendingCount });
 });
 
 // Historial de rutinas completadas del alumno
