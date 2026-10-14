@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import {
-  LineChart, Line, BarChart, Bar,
+  LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 
@@ -210,8 +210,8 @@ export default function Performance() {
                     <span className="text-gray-600 text-xs ml-auto">reps × series</span>
                   </div>
                   <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={volumeLogs} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
+                    <LineChart data={volumeLogs} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
                       <XAxis
                         dataKey={xKey}
                         tick={{ fill: '#555', fontSize: 10 }}
@@ -224,15 +224,18 @@ export default function Performance() {
                         tickLine={false}
                         domain={[dataMin => Math.max(0, Math.floor(dataMin * 0.85)), dataMax => Math.ceil(dataMax * 1.1)]}
                       />
-                      <Tooltip content={<CustomTooltipVolume />} cursor={{ fill: 'rgba(59,130,246,0.05)' }} />
-                      <Bar
+                      <Tooltip content={<CustomTooltipVolume />} cursor={{ stroke: '#333' }} />
+                      <Line
+                        type="monotone"
                         dataKey="volume"
-                        fill="#3b82f6"
-                        radius={[6, 6, 0, 0]}
+                        stroke="#3b82f6"
+                        strokeWidth={2.5}
+                        dot={{ fill: '#3b82f6', r: 4, strokeWidth: 0 }}
+                        activeDot={{ r: 6, fill: '#3b82f6' }}
                         animationDuration={900}
                         animationEasing="ease-out"
                       />
-                    </BarChart>
+                    </LineChart>
                   </ResponsiveContainer>
                 </div>
               )}
