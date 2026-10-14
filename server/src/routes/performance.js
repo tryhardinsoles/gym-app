@@ -23,6 +23,7 @@ router.get('/', requireAuth, async (req, res) => {
   const logs = await prisma.exerciseLog.findMany({
     where: { userId: req.user.id },
     orderBy: { loggedAt: 'asc' },
+    include: { exercise: { select: { youtubeUrl: true } } },
   });
 
   const exerciseMap = new Map();
@@ -32,8 +33,13 @@ router.get('/', requireAuth, async (req, res) => {
       exerciseMap.set(key, {
         id: key,
         name: log.exerciseName,
+        youtubeUrl: log.exercise?.youtubeUrl ?? null,
         logs: [],
       });
+    }
+    // Keep first non-null youtubeUrl found
+    if (!exerciseMap.get(key).youtubeUrl && log.exercise?.youtubeUrl) {
+      exerciseMap.get(key).youtubeUrl = log.exercise.youtubeUrl;
     }
     const volume = log.reps != null ? log.reps * log.series : null;
     exerciseMap.get(key).logs.push({
