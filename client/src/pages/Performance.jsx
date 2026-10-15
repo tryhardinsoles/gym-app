@@ -398,7 +398,7 @@ export default function Performance() {
                   </LineChart>
                 </ResponsiveContainer>
                 <div className="flex gap-4 mt-3 justify-center">
-                  {[['#4ade80','7-10 Bien'],['#facc15','4-6 Regular'],['#f87171','1-3 Difícil']].map(([color, label]) => (
+                  {[['#4ade80','7-10 Bien'],['#facc15','4-6 Regular'],['#f87171','1-3 Mal']].map(([color, label]) => (
                     <span key={label} className="flex items-center gap-1 text-[10px] text-gray-500">
                       <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: color }} />
                       {label}
