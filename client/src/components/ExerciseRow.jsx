@@ -33,6 +33,10 @@ export default function ExerciseRow({ exercise, isSelected, onSelect, onExercise
     onExerciseUpdate(exercise.id, 'repetitions', trimmed);
   };
 
+  const prWeight = exercise.prWeight ?? null;
+  const currentNum = parseFloat(weight);
+  const isNewPR = prWeight != null && !isNaN(currentNum) && currentNum > prWeight;
+
   return (
     <div
       onClick={onSelect}
@@ -51,6 +55,11 @@ export default function ExerciseRow({ exercise, isSelected, onSelect, onExercise
         }`}>
           {exercise.name}
         </span>
+        {isNewPR && (
+          <span className="text-[9px] font-black text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded-full shrink-0">
+            🏅 PR
+          </span>
+        )}
       </div>
       <div className="flex gap-2 text-xs">
         <div className="flex-1 bg-gray-700/50 rounded-xl px-2 py-1.5 text-center">
@@ -71,17 +80,28 @@ export default function ExerciseRow({ exercise, isSelected, onSelect, onExercise
           />
         </div>
         <div
-          className="flex-1 bg-gray-700/50 rounded-xl px-2 py-1.5 text-center"
+          className={`flex-1 rounded-xl px-2 py-1.5 text-center transition-colors ${
+            isNewPR ? 'bg-yellow-400/10' : 'bg-gray-700/50'
+          }`}
           onClick={e => e.stopPropagation()}
         >
           <span className="block text-gray-500 text-[10px] mb-0.5">Peso</span>
           <input
-            className="w-full bg-transparent font-bold text-white text-center outline-none text-xs"
+            className={`w-full bg-transparent font-bold text-center outline-none text-xs ${
+              isNewPR ? 'text-yellow-400' : 'text-white'
+            }`}
             value={weight}
             placeholder="—"
             onChange={e => setWeight(e.target.value)}
             onBlur={handleWeightBlur}
           />
+          {prWeight != null && (
+            <span className={`block text-[8px] font-bold leading-none mt-0.5 ${
+              isNewPR ? 'text-yellow-400' : 'text-gray-600'
+            }`}>
+              {isNewPR ? '¡nuevo máx!' : `máx ${prWeight}kg`}
+            </span>
+          )}
         </div>
       </div>
     </div>

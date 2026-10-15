@@ -4,6 +4,7 @@ import axios from 'axios';
 import ExerciseRow from '../components/ExerciseRow.jsx';
 import ConfettiScreen from '../components/ConfettiScreen.jsx';
 import WellbeingScale from '../components/WellbeingScale.jsx';
+import PRCelebration from '../components/PRCelebration.jsx';
 
 function getYouTubeId(url) {
   if (!url) return null;
@@ -45,6 +46,7 @@ export default function Routine({ adminPlay = false }) {
   const [wellbeingDone, setWellbeingDone] = useState(false);
   const [wellbeingScore, setWellbeingScore] = useState(null);
   const [isOverview, setIsOverview] = useState(false);
+  const [prAlert, setPrAlert] = useState(null); // { count, exercises[] }
 
   useEffect(() => {
     const fetchRoutine = async () => {
@@ -93,15 +95,33 @@ export default function Routine({ adminPlay = false }) {
     } catch {}
   }, [adminPlay]);
 
-  const handleNext = async () => {
+  const parseWeightNum = (str) => {
+    if (!str) return null;
+    const m = String(str).match(/(\d+\.?\d*)/);
+    return m ? parseFloat(m[1]) : null;
+  };
+
+  const doNext = async () => {
     if (isLastSection) {
-      if (sessionId) {
-        await axios.post(`/api/workouts/${sessionId}/complete`);
-      }
+      if (sessionId) await axios.post(`/api/workouts/${sessionId}/complete`);
       setShowConfetti(true);
     } else {
       setCurrentSectionIdx(i => i + 1);
     }
+  };
+
+  const handleNext = async () => {
+    if (!adminPlay) {
+      const newPRs = (currentSection?.exercises ?? []).filter(ex => {
+        const current = parseWeightNum(ex.weight);
+        return current != null && ex.prWeight != null && current > ex.prWeight;
+      });
+      if (newPRs.length > 0) {
+        setPrAlert({ count: newPRs.length, exercises: newPRs.map(e => e.name) });
+        return;
+      }
+    }
+    await doNext();
   };
 
   const handleSaveWellbeing = async () => {
@@ -166,6 +186,14 @@ export default function Routine({ adminPlay = false }) {
   );
 
   const videoId = getYouTubeId(selectedExercise?.youtubeUrl);
+
+  if (prAlert) return (
+    <PRCelebration
+      count={prAlert.count}
+      exercises={prAlert.exercises}
+      onDismiss={async () => { setPrAlert(null); await doNext(); }}
+    />
+  );
 
   const handleExerciseInOverview = (sectionIdx, exercise) => {
     setCurrentSectionIdx(sectionIdx);

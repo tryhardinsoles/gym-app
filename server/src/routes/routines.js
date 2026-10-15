@@ -75,6 +75,23 @@ router.get('/current', requireAuth, async (req, res) => {
         if (lastReps[ex.name]) ex.repetitions = lastReps[ex.name];
       }
     }
+
+    // Agregar PR histórico (máximo peso/reps registrado en ExerciseLog)
+    const prLogs = await prisma.exerciseLog.findMany({
+      where: { userId: req.user.id },
+      select: { exerciseName: true, weight: true, reps: true }
+    });
+    const maxW = {}, maxR = {};
+    for (const log of prLogs) {
+      const k = log.exerciseName.toLowerCase().trim();
+      if (log.weight != null && (!maxW[k] || log.weight > maxW[k])) maxW[k] = log.weight;
+      if (log.reps   != null && (!maxR[k] || log.reps   > maxR[k])) maxR[k] = log.reps;
+    }
+    for (const ex of allExercises) {
+      const k = ex.name.toLowerCase().trim();
+      ex.prWeight = maxW[k] ?? null;
+      ex.prReps   = maxR[k] ?? null;
+    }
   }
 
   // Buscar sesión activa o crear una
