@@ -49,7 +49,18 @@ router.get('/', requireAuth, async (req, res) => {
     });
   }
 
-  res.json({ plan, exercises: Array.from(exerciseMap.values()) });
+  const wellbeingRaw = await prisma.wellbeingLog.findMany({
+    where: { userId: req.user.id },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const wellbeingLogs = wellbeingRaw.map(l => ({
+    date: formatDate(l.createdAt),
+    score: l.score,
+    dayOfWeek: new Date(l.createdAt).getDay(), // 0=Dom
+  }));
+
+  res.json({ plan, exercises: Array.from(exerciseMap.values()), wellbeingLogs });
 });
 
 export default router;
