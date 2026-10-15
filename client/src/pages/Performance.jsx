@@ -9,12 +9,6 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 
-function getYoutubeId(url) {
-  if (!url) return null;
-  const m = url.match(/(?:[?&]v=|youtu\.be\/)([^&?\s]{11})/);
-  return m?.[1] ?? null;
-}
-
 function wellbeingColor(score) {
   if (score >= 7) return '#4ade80';
   if (score >= 4) return '#facc15';
@@ -225,33 +219,18 @@ export default function Performance() {
             {/* Left: exercise list */}
             <div className="w-[38%] border-r border-gray-800 overflow-y-auto py-2 shrink-0">
               {data.exercises.map(ex => {
-                const videoId = getYoutubeId(ex.youtubeUrl);
                 const isSelected = selected === ex.id;
                 return (
                   <button
                     key={ex.id}
                     onClick={() => setSelected(ex.id)}
-                    className={`w-full flex flex-col items-center gap-1.5 px-2 py-2.5 transition-all border-l-2 ${
+                    className={`w-full flex flex-col items-center gap-1 px-2 py-3 transition-all border-l-2 ${
                       isSelected
                         ? 'border-brand-500 bg-brand-500/8'
                         : 'border-transparent active:bg-gray-800/50'
                     }`}
                   >
-                    {videoId ? (
-                      <img
-                        src={`https://img.youtube.com/vi/${videoId}/default.jpg`}
-                        alt=""
-                        className="w-full aspect-video rounded-lg object-cover bg-gray-800"
-                        style={{ maxHeight: '52px' }}
-                      />
-                    ) : (
-                      <div className="w-full rounded-lg bg-gray-800 flex items-center justify-center" style={{ height: '52px' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polygon points="5 3 19 12 5 21 5 3"/>
-                        </svg>
-                      </div>
-                    )}
-                    <p className={`text-[10px] font-bold leading-tight text-center w-full line-clamp-2 ${
+                    <p className={`text-[10px] font-bold leading-tight text-center w-full line-clamp-3 ${
                       isSelected ? 'text-brand-300' : 'text-gray-300'
                     }`}>
                       {ex.name}
