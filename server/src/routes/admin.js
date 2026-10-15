@@ -130,18 +130,8 @@ router.post('/users/:id/routines', requireAdmin, async (req, res) => {
 router.put('/routines/:id', requireAdmin, async (req, res) => {
   const { name, sections } = req.body;
 
-  // Capturar nombres actuales antes de borrar para detectar cambios
-  const currentRoutine = await prisma.routine.findUnique({
-    where: { id: req.params.id },
-    include: {
-      sections: { orderBy: { order: 'asc' }, include: { exercises: { orderBy: { order: 'asc' } } } }
-    }
-  });
-
-  const oldBySection = {};
-  for (const sec of currentRoutine.sections) {
-    oldBySection[sec.name] = sec.exercises.map(ex => ex.name);
-  }
+  const currentRoutine = await prisma.routine.findUnique({ where: { id: req.params.id } });
+  if (!currentRoutine) return res.status(404).json({ error: 'Rutina no encontrada' });
 
   await prisma.routineSection.deleteMany({ where: { routineId: req.params.id } });
 
@@ -169,38 +159,52 @@ router.put('/routines/:id', requireAdmin, async (req, res) => {
     include: { sections: { include: { exercises: true } } }
   });
 
-  // Detectar ejercicios cuyo nombre cambió por posición (misma sección, mismo índice)
-  const nameChanges = new Map();
-  for (const newSec of sections) {
-    const oldNames = oldBySection[newSec.name] || [];
-    newSec.exercises.forEach((newEx, i) => {
-      const oldName = oldNames[i];
-      if (oldName && oldName !== newEx.name && newEx.name) {
-        nameChanges.set(oldName, newEx.name);
+  // Propagar cambios elegidos por el admin a los días PENDIENTES del mismo alumno
+  // propagate: [{ oldName, changes: { name?, youtubeUrl?, repetitions?, weight? } }]
+  const { propagate } = req.body;
+  if (Array.isArray(propagate) && propagate.length > 0) {
+    const pending = await findPendingExercises(currentRoutine.userId, req.params.id);
+    for (const p of propagate) {
+      const data = {};
+      for (const f of ['name', 'youtubeUrl', 'repetitions', 'weight']) {
+        if (p.changes && f in p.changes) data[f] = p.changes[f] || (f === 'name' || f === 'repetitions' ? undefined : null);
       }
-    });
-  }
-
-  // Propagar cambios a rutinas futuras del mismo alumno
-  if (nameChanges.size > 0) {
-    const futureRoutines = await prisma.routine.findMany({
-      where: { userId: currentRoutine.userId, order: { gt: currentRoutine.order } },
-      include: { sections: { include: { exercises: true } } }
-    });
-
-    for (const fut of futureRoutines) {
-      for (const sec of fut.sections) {
-        for (const ex of sec.exercises) {
-          const newName = nameChanges.get(ex.name);
-          if (newName) {
-            await prisma.exercise.update({ where: { id: ex.id }, data: { name: newName } });
-          }
-        }
-      }
+      if (Object.keys(data).length === 0) continue;
+      const ids = pending.filter(e => normName(e.name) === normName(p.oldName)).map(e => e.id);
+      if (ids.length) await prisma.exercise.updateMany({ where: { id: { in: ids } }, data });
     }
   }
 
   res.json(routine);
+});
+
+const normName = (s) => (s || '').trim().toLowerCase();
+
+// Ejercicios de las rutinas pendientes del alumno (excepto la rutina indicada)
+async function findPendingExercises(userId, excludeRoutineId) {
+  const routines = await prisma.routine.findMany({
+    where: { userId, completedAt: null, id: { not: excludeRoutineId } },
+    orderBy: [{ mes: 'asc' }, { order: 'asc' }],
+    include: { sections: { include: { exercises: true } } }
+  });
+  return routines.flatMap(r => r.sections.flatMap(s =>
+    s.exercises.map(e => ({ ...e, routineName: r.name, mes: r.mes }))
+  ));
+}
+
+// Vista previa: en qué días pendientes aparece cada ejercicio
+router.post('/routines/:id/propagation-preview', requireAdmin, async (req, res) => {
+  const { names } = req.body;
+  const routine = await prisma.routine.findUnique({ where: { id: req.params.id } });
+  if (!routine) return res.status(404).json({ error: 'Rutina no encontrada' });
+  const pending = await findPendingExercises(routine.userId, routine.id);
+  const result = {};
+  for (const n of names || []) {
+    const days = pending.filter(e => normName(e.name) === normName(n))
+      .map(e => `Mes ${e.mes} · ${e.routineName}`);
+    result[n] = [...new Set(days)];
+  }
+  res.json(result);
 });
 
 // Importar CSV de rutinas (12 dias → agrupados en un nuevo mes)

@@ -25,6 +25,7 @@ export default function RoutineEditor() {
   const [sections, setSections] = useState(emptySections());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [propagation, setPropagation] = useState(null); // [{ oldName, changes, labels, days, checked }]
 
   useEffect(() => {
     if (!isEdit) return;
@@ -43,6 +44,7 @@ export default function RoutineEditor() {
             weight: ex.weight || '',
             series: String(ex.series),
             youtubeUrl: ex.youtubeUrl || '',
+            _orig: { name: ex.name, repetitions: ex.repetitions, weight: ex.weight || '' },
           })) || []
         };
       });
@@ -78,6 +80,63 @@ export default function RoutineEditor() {
     }
   };
 
+  const buildPayload = () => ({
+    name: routineName.trim(),
+    sections: sections.filter(s => s.exercises.length > 0).map(s => ({
+      name: s.name,
+      exercises: s.exercises.map(ex => ({
+        name: ex.name,
+        repetitions: ex.repetitions,
+        weight: ex.weight,
+        series: Number(ex.series),
+        youtubeUrl: ex.youtubeUrl,
+      }))
+    }))
+  });
+
+  // Ejercicios editados (nombre, reps o peso) respecto a lo que estaba guardado
+  const detectChanges = () => {
+    const list = [];
+    sections.forEach(s => s.exercises.forEach(ex => {
+      const o = ex._orig;
+      if (!o) return;
+      const changes = {};
+      const labels = [];
+      if (ex.name.trim() !== o.name.trim()) {
+        changes.name = ex.name.trim();
+        changes.youtubeUrl = ex.youtubeUrl;
+        labels.push(`${o.name} → ${ex.name.trim()}`);
+      }
+      if (ex.repetitions !== o.repetitions) {
+        changes.repetitions = ex.repetitions;
+        labels.push(`Reps: ${o.repetitions || '—'} → ${ex.repetitions || '—'}`);
+      }
+      if (ex.weight !== o.weight) {
+        changes.weight = ex.weight;
+        labels.push(`Peso: ${o.weight || '—'} → ${ex.weight || '—'}`);
+      }
+      if (labels.length) list.push({ oldName: o.name, changes, labels });
+    }));
+    return list;
+  };
+
+  const doSave = async (propagate = []) => {
+    setSaving(true);
+    setError('');
+    try {
+      const payload = buildPayload();
+      if (isEdit) {
+        await axios.put(`/api/admin/routines/${routineId}`, { ...payload, propagate });
+      } else {
+        await axios.post(`/api/admin/users/${userId}/routines`, payload);
+      }
+      navigate(`/admin/users/${userId}`);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al guardar');
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!routineName.trim()) { setError('Ingresá el nombre de la rutina'); return; }
     const hasExercises = sections.some(s => s.exercises.length > 0);
@@ -88,35 +147,40 @@ export default function RoutineEditor() {
     );
     if (invalid) { setError('Completá nombre, repeticiones y series de todos los ejercicios'); return; }
 
-    setSaving(true);
-    setError('');
-    try {
-      const payload = {
-        name: routineName.trim(),
-        sections: sections.filter(s => s.exercises.length > 0).map(s => ({
-          name: s.name,
-          exercises: s.exercises.map(ex => ({
-            name: ex.name,
-            repetitions: ex.repetitions,
-            weight: ex.weight,
-            series: Number(ex.series),
-            youtubeUrl: ex.youtubeUrl,
-          }))
-        }))
-      };
-
-      if (isEdit) {
-        await axios.put(`/api/admin/routines/${routineId}`, payload);
-      } else {
-        await axios.post(`/api/admin/users/${userId}/routines`, payload);
+    if (isEdit) {
+      const changes = detectChanges();
+      if (changes.length) {
+        setSaving(true);
+        try {
+          const names = [...new Set(changes.map(c => c.oldName))];
+          const { data } = await axios.post(`/api/admin/routines/${routineId}/propagation-preview`, { names });
+          const withDays = changes
+            .map(c => ({ ...c, days: data[c.oldName] || [], checked: true }))
+            .filter(c => c.days.length > 0);
+          if (withDays.length) {
+            setPropagation(withDays);
+            setSaving(false);
+            return;
+          }
+        } catch {
+          // si falla la vista previa, se guarda solo este día
+        }
+        setSaving(false);
       }
-      navigate(`/admin/users/${userId}`);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Error al guardar');
-    } finally {
-      setSaving(false);
     }
+    doSave();
   };
+
+  const confirmPropagation = (applyChecked) => {
+    const selected = applyChecked
+      ? propagation.filter(p => p.checked).map(p => ({ oldName: p.oldName, changes: p.changes }))
+      : [];
+    setPropagation(null);
+    doSave(selected);
+  };
+
+  const togglePropagation = (idx) =>
+    setPropagation(prev => prev.map((p, i) => i === idx ? { ...p, checked: !p.checked } : p));
 
   return (
     <div className="min-h-screen p-4 max-w-2xl mx-auto pb-32">
@@ -234,6 +298,48 @@ export default function RoutineEditor() {
           </div>
         </div>
       ))}
+
+      {/* Propagation modal */}
+      {propagation && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4">
+          <div className="card w-full max-w-lg max-h-[85vh] overflow-y-auto">
+            <h2 className="text-lg font-black text-white mb-1">¿Aplicar en otros días?</h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Estos ejercicios también aparecen en días que el alumno todavía no completó. Marcá los cambios que querés copiar.
+            </p>
+            <div className="space-y-3 mb-5">
+              {propagation.map((p, idx) => (
+                <label key={idx} className="flex gap-3 bg-gray-800/60 rounded-2xl p-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 w-5 h-5 accent-brand-500 shrink-0"
+                    checked={p.checked}
+                    onChange={() => togglePropagation(idx)}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-white font-bold">{p.oldName}</p>
+                    {p.labels.map(l => <p key={l} className="text-brand-400 text-sm">{l}</p>)}
+                    <p className="text-gray-500 text-xs mt-1">
+                      {p.days.length} {p.days.length === 1 ? 'día pendiente' : 'días pendientes'}: {p.days.join(', ')}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="space-y-2">
+              <button className="btn-primary" onClick={() => confirmPropagation(true)}>
+                Aplicar en los marcados
+              </button>
+              <button className="btn-secondary" onClick={() => confirmPropagation(false)}>
+                Solo en este día
+              </button>
+              <button className="w-full text-gray-500 text-sm py-2 hover:text-gray-300" onClick={() => setPropagation(null)}>
+                Cancelar (seguir editando)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Save footer */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-gray-950 via-gray-950/95 to-transparent">
