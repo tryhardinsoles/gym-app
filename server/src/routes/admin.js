@@ -1,6 +1,7 @@
 ﻿import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAdmin } from '../middleware/admin.js';
+import { google } from 'googleapis';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -742,23 +743,51 @@ router.post('/migrate-exercise-logs', requireAdmin, async (req, res) => {
 
 // ── Google Sheets helpers ─────────────────────────────────────────────────────
 
-function sheetToCsvUrl(url) {
-  const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (!idMatch) return null;
-  const spreadsheetId = idMatch[1];
-  const gidMatch = url.match(/[#&?]gid=(\d+)/);
-  const gid = gidMatch ? gidMatch[1] : null;
-  // Solo respetar el gid si es distinto de 0 (0 = primera hoja por defecto)
-  if (gid && gid !== '0') {
-    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`;
-  }
-  // Sin gid o gid=0: buscar la hoja "vista-web" por nombre
-  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=vista-web`;
+async function resolveSheetGid(spreadsheetId, sheetName) {
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const key = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  if (!email || !key) return null;
+  const auth = new google.auth.JWT({
+    email, key,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  });
+  const sheets = google.sheets({ version: 'v4', auth });
+  const { data } = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties',
+  });
+  const found = (data.sheets || []).find(
+    s => s.properties.title.toLowerCase() === sheetName.toLowerCase()
+  );
+  return found?.properties?.sheetId ?? null;
 }
 
 async function fetchSheetCsv(sheetUrl) {
-  const csvUrl = sheetToCsvUrl(sheetUrl);
-  if (!csvUrl) throw new Error('URL de Google Sheets inválida');
+  const idMatch = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (!idMatch) throw new Error('URL de Google Sheets inválida');
+  const spreadsheetId = idMatch[1];
+
+  const gidMatch = sheetUrl.match(/[#&?]gid=(\d+)/);
+  const gid = gidMatch?.[1];
+
+  let csvUrl;
+  if (gid && gid !== '0') {
+    // gid explícito distinto de 0: usar directo
+    csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`;
+  } else {
+    // Buscar "vista-web" via Sheets API para obtener su gid real
+    try {
+      const resolvedGid = await resolveSheetGid(spreadsheetId, 'vista-web');
+      if (resolvedGid != null) {
+        csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${resolvedGid}`;
+      }
+    } catch {}
+    // Fallback si la API no está configurada
+    if (!csvUrl) {
+      csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=vista-web`;
+    }
+  }
+
   const res = await fetch(csvUrl, { redirect: 'follow' });
   if (!res.ok) throw new Error(`No se pudo acceder a la hoja (HTTP ${res.status})`);
   const text = await res.text();
