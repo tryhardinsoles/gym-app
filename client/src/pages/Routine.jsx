@@ -237,11 +237,12 @@ export default function Routine({ adminPlay = false }) {
         className="flex flex-col overflow-hidden"
       >
         {/* Header del bloque */}
-        <div className="px-4 pt-3 pb-2 flex items-center justify-between flex-shrink-0 border-b border-gray-800/60">
+        <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-shrink-0 border-b border-gray-800/60">
+          {/* Izquierda: nombre del bloque */}
           {isOverview ? (
             <button
               onClick={() => navigate(adminPlay ? `/admin/users/${userId}` : '/')}
-              className="text-gray-500 hover:text-white text-sm font-bold transition-colors"
+              className="text-gray-500 hover:text-white text-sm font-bold transition-colors flex-1"
             >
               ← Volver
             </button>
@@ -254,45 +255,41 @@ export default function Routine({ adminPlay = false }) {
             </div>
           )}
 
-          <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-            {/* Progress dots — hide in overview */}
-            {!isOverview && (
-              <div className="flex gap-1.5">
-                {activeSections.map((_, i) => (
-                  <div
-                    key={i}
-                    className={`h-1.5 w-5 rounded-full transition-all ${
-                      i < currentSectionIdx ? 'bg-brand-500' :
-                      i === currentSectionIdx ? 'bg-brand-400' :
-                      'bg-gray-700'
-                    }`}
-                  />
-                ))}
-              </div>
+          {/* Centro: botón overview */}
+          <button
+            onClick={() => setIsOverview(v => !v)}
+            className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors flex-shrink-0 ${
+              isOverview ? 'bg-brand-500/20 text-brand-400' : 'bg-gray-800 text-gray-400 hover:text-white'
+            }`}
+            title={isOverview ? 'Volver al bloque' : 'Ver todos los bloques'}
+          >
+            {isOverview ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
             )}
+          </button>
 
-            {/* Overview toggle */}
-            <button
-              onClick={() => setIsOverview(v => !v)}
-              className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${
-                isOverview ? 'bg-brand-500/20 text-brand-400' : 'bg-gray-800 text-gray-400 hover:text-white'
-              }`}
-              title={isOverview ? 'Volver al bloque' : 'Ver todos los bloques'}
-            >
-              {isOverview ? (
-                /* X to close overview */
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              ) : (
-                /* Grid icon */
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                  <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-                </svg>
-              )}
-            </button>
-          </div>
+          {/* Derecha: puntos de progreso */}
+          {!isOverview && (
+            <div className="flex gap-1.5 flex-shrink-0">
+              {activeSections.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-1.5 w-5 rounded-full transition-all ${
+                    i < currentSectionIdx ? 'bg-brand-500' :
+                    i === currentSectionIdx ? 'bg-brand-400' :
+                    'bg-gray-700'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {isOverview ? (
