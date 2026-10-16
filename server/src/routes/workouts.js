@@ -76,24 +76,6 @@ router.post('/:sessionId/complete', requireAuth, async (req, res) => {
   res.json({ ok: true, completedAt: now });
 });
 
-// Guardar datos de salud de una sesión (sueño + FC)
-router.patch('/:sessionId/health-stats', requireAuth, async (req, res) => {
-  const session = await prisma.workoutSession.findFirst({
-    where: { id: req.params.sessionId, userId: req.user.id, completedAt: { not: null } }
-  });
-  if (!session) return res.status(404).json({ error: 'Sesión no encontrada' });
-
-  const { sleepHours, hrMax, hrMin, hrAvg } = req.body;
-  const data = {};
-  if (sleepHours !== undefined) data.sleepHours = sleepHours !== '' && sleepHours != null ? parseFloat(sleepHours) : null;
-  if (hrMax !== undefined) data.hrMax = hrMax !== '' && hrMax != null ? parseInt(hrMax) : null;
-  if (hrMin !== undefined) data.hrMin = hrMin !== '' && hrMin != null ? parseInt(hrMin) : null;
-  if (hrAvg !== undefined) data.hrAvg = hrAvg !== '' && hrAvg != null ? parseInt(hrAvg) : null;
-
-  await prisma.workoutSession.update({ where: { id: req.params.sessionId }, data });
-  res.json({ ok: true });
-});
-
 // Obtener última sesión completada (para saber si pasaron 8 horas)
 router.get('/last-completed', requireAuth, async (req, res) => {
   const session = await prisma.workoutSession.findFirst({

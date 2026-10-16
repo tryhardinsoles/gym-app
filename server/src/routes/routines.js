@@ -128,25 +128,9 @@ router.get('/history', requireAuth, async (req, res) => {
   const routines = await prisma.routine.findMany({
     where: { userId: req.user.id, completedAt: { not: null } },
     orderBy: [{ mes: 'asc' }, { order: 'asc' }],
-    select: {
-      id: true, name: true, mes: true, completedAt: true,
-      workoutSessions: {
-        where: { completedAt: { not: null } },
-        orderBy: { completedAt: 'desc' },
-        take: 1,
-        select: { id: true, sleepHours: true, hrMax: true, hrMin: true, hrAvg: true }
-      }
-    }
+    select: { id: true, name: true, mes: true, completedAt: true }
   });
-  res.json(routines.map(r => {
-    const s = r.workoutSessions[0] ?? {};
-    return {
-      id: r.id, name: r.name, mes: r.mes, completedAt: r.completedAt,
-      sessionId: s.id ?? null,
-      sleepHours: s.sleepHours ?? null,
-      hrMax: s.hrMax ?? null, hrMin: s.hrMin ?? null, hrAvg: s.hrAvg ?? null,
-    };
-  }));
+  res.json(routines);
 });
 
 // Actualizar peso o repeticiones de un ejercicio (verifica que pertenezca al alumno)

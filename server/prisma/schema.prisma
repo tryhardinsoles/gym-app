@@ -107,10 +107,6 @@ model WorkoutSession {
   routine     Routine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
   completedAt DateTime?
   createdAt   DateTime  @default(now())
-  sleepHours  Float?
-  hrMax       Int?
-  hrMin       Int?
-  hrAvg       Int?
 
   feedbacks    ExerciseFeedback[]
   exerciseLogs ExerciseLog[]
