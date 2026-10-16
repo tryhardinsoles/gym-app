@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import CountUp from '../components/CountUp.jsx';
+import SpotlightCard from '../components/SpotlightCard.jsx';
 
 const ACHIEVEMENTS = [
   { id: 'first_workout',   icon: '🔥', title: 'Primera llama',       desc: 'Completaste tu primer entrenamiento',     check: (s) => s.totalSessions >= 1 },
@@ -109,7 +111,7 @@ export default function Achievements() {
             { label: 'Récords rotos', value: stats.exercisesWithPR },
           ].map(s => (
             <div key={s.label} className="card text-center py-4">
-              <p className="text-white font-black text-2xl">{s.value}</p>
+              <CountUp to={s.value} className="text-white font-black text-2xl" />
               <p className="text-gray-500 text-[10px] leading-tight mt-0.5">{s.label}</p>
             </div>
           ))}
@@ -120,14 +122,18 @@ export default function Achievements() {
           <div>
             <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3 px-1">Desbloqueados</p>
             <div className="grid grid-cols-2 gap-3">
-              {earned.map(a => (
-                <div key={a.id} className="card flex items-start gap-3 py-4">
+              {earned.map((a, i) => (
+                <SpotlightCard
+                  key={a.id}
+                  className="flex items-start gap-3 py-4"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                >
                   <span className="text-2xl shrink-0" style={{ filter: 'drop-shadow(0 0 8px rgba(251,191,36,0.5))' }}>{a.icon}</span>
                   <div className="min-w-0">
                     <p className="text-white font-black text-sm leading-tight">{a.title}</p>
                     <p className="text-gray-500 text-[10px] leading-snug mt-0.5">{a.desc}</p>
                   </div>
-                </div>
+                </SpotlightCard>
               ))}
             </div>
           </div>

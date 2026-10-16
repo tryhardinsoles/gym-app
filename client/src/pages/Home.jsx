@@ -6,6 +6,7 @@ import { getRandomWelcome, getRandomCompleted } from '../data/messages.js';
 import { getRandomQuote } from '../data/quotes.js';
 import WellbeingScale from '../components/WellbeingScale.jsx';
 import Sidebar from '../components/Sidebar.jsx';
+import StarBorder from '../components/StarBorder.jsx';
 
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
@@ -206,6 +207,7 @@ export default function Home() {
 
       {/* Start button */}
       <div className="mt-6">
+        <StarBorder>
         <button
           className="btn-primary text-xl py-5 relative"
           onClick={() => navigate('/routine')}
@@ -217,6 +219,7 @@ export default function Home() {
             </span>
           )}
         </button>
+        </StarBorder>
       </div>
 
       <HistorySection />

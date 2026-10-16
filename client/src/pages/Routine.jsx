@@ -5,6 +5,7 @@ import ExerciseRow from '../components/ExerciseRow.jsx';
 import ConfettiScreen from '../components/ConfettiScreen.jsx';
 import WellbeingScale from '../components/WellbeingScale.jsx';
 import PRCelebration from '../components/PRCelebration.jsx';
+import HoldButton from '../components/HoldButton.jsx';
 
 function getYouTubeId(url) {
   if (!url) return null;
@@ -47,6 +48,7 @@ export default function Routine({ adminPlay = false }) {
   const [wellbeingScore, setWellbeingScore] = useState(null);
   const [isOverview, setIsOverview] = useState(false);
   const [prAlert, setPrAlert] = useState(null); // { count, exercises[] }
+  const [feedbacks, setFeedbacks] = useState({}); // { exerciseId: 'green'|'yellow'|'red' }
 
   useEffect(() => {
     const fetchRoutine = async () => {
@@ -57,6 +59,10 @@ export default function Routine({ adminPlay = false }) {
         if (!data) { setError('No tenés rutinas pendientes 🎉'); setLoading(false); return; }
         setRoutine(data.routine);
         setSessionId(data.sessionId);
+        // Pre-cargar feedbacks existentes de la sesión
+        const fbMap = {};
+        for (const fb of data.feedbacks || []) fbMap[fb.exerciseId] = fb.feedback;
+        setFeedbacks(fbMap);
       } catch {
         setError('Error al cargar la rutina');
       } finally {
@@ -94,6 +100,14 @@ export default function Routine({ adminPlay = false }) {
       }));
     } catch {}
   }, [adminPlay]);
+
+  const handleFeedback = useCallback(async (exerciseId, value) => {
+    setFeedbacks(prev => ({ ...prev, [exerciseId]: value }));
+    if (sessionId) {
+      try { await axios.post(`/api/workouts/${sessionId}/feedback`, { exerciseId, feedback: value }); }
+      catch {}
+    }
+  }, [sessionId]);
 
   const parseWeightNum = (str) => {
     if (!str) return null;
@@ -345,14 +359,22 @@ export default function Routine({ adminPlay = false }) {
           /* ── Normal: current section ───────────────────────── */
           <>
             <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
-              {currentSection?.exercises.map(ex => (
-                <ExerciseRow
+              {currentSection?.exercises.map((ex, i) => (
+                <div
                   key={ex.id}
-                  exercise={ex}
-                  isSelected={selectedExercise?.id === ex.id}
-                  onSelect={() => setSelectedExercise(ex)}
-                  onExerciseUpdate={handleExerciseUpdate}
-                />
+                  style={{
+                    animation: `slideInUp 0.28s cubic-bezier(0.22,1,0.36,1) ${i * 50}ms both`,
+                  }}
+                >
+                  <ExerciseRow
+                    exercise={ex}
+                    isSelected={selectedExercise?.id === ex.id}
+                    onSelect={() => setSelectedExercise(ex)}
+                    onExerciseUpdate={!adminPlay ? handleExerciseUpdate : undefined}
+                    feedback={feedbacks[ex.id]}
+                    onFeedback={!adminPlay ? handleFeedback : undefined}
+                  />
+                </div>
               ))}
             </div>
 
@@ -364,13 +386,29 @@ export default function Routine({ adminPlay = false }) {
               >
                 ←
               </button>
-              <button
-                onClick={handleNext}
-                className="w-4/5 bg-brand-500 hover:bg-brand-400 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all"
-              >
-                {isLastSection ? '🏁 Finalizar entrenamiento' : 'Completar bloque →'}
-              </button>
+              {isLastSection ? (
+                <HoldButton
+                  onHold={handleNext}
+                  label="🏁 Mantener para finalizar"
+                  doneLabel="🏁 Finalizando..."
+                  holdTime={1200}
+                  className="w-4/5 bg-brand-500 text-white font-black py-4 rounded-2xl text-base"
+                />
+              ) : (
+                <button
+                  onClick={handleNext}
+                  className="w-4/5 bg-brand-500 hover:bg-brand-400 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all"
+                >
+                  Completar bloque →
+                </button>
+              )}
             </div>
+            <style>{`
+              @keyframes slideInUp {
+                from { opacity: 0; transform: translateY(10px); }
+                to   { opacity: 1; transform: translateY(0); }
+              }
+            `}</style>
           </>
         )}
       </div>

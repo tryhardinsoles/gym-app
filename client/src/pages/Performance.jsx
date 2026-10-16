@@ -169,20 +169,25 @@ export default function Performance() {
       <div className="flex items-center gap-2 px-4 pt-5 pb-3 shrink-0">
         <HamburgerButton open={sidebarOpen} onClick={() => setSidebarOpen(v => !v)} />
 
-        {/* Tabs */}
-        <div className="flex flex-1 items-center gap-1 bg-gray-900 rounded-2xl p-1 mx-1">
+        {/* Tabs — pill animado */}
+        <div className="relative flex flex-1 items-center bg-gray-900 rounded-2xl p-1 mx-1">
+          {/* Pill deslizante */}
+          <div
+            className="absolute top-1 bottom-1 w-[calc(50%-2px)] bg-gray-700 rounded-xl transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+            style={{ transform: tab === 'exercises' ? 'translateX(0)' : 'translateX(calc(100% + 4px))' }}
+          />
           <button
             onClick={() => setTab('exercises')}
-            className={`flex-1 py-1.5 rounded-xl text-xs font-black transition-all ${
-              tab === 'exercises' ? 'bg-gray-700 text-white' : 'text-gray-500'
+            className={`relative flex-1 py-1.5 rounded-xl text-xs font-black transition-colors duration-200 z-10 ${
+              tab === 'exercises' ? 'text-white' : 'text-gray-500'
             }`}
           >
             Ejercicios
           </button>
           <button
             onClick={() => setTab('wellbeing')}
-            className={`flex-1 py-1.5 rounded-xl text-xs font-black transition-all ${
-              tab === 'wellbeing' ? 'bg-gray-700 text-white' : 'text-gray-500'
+            className={`relative flex-1 py-1.5 rounded-xl text-xs font-black transition-colors duration-200 z-10 ${
+              tab === 'wellbeing' ? 'text-white' : 'text-gray-500'
             }`}
           >
             Percepción
