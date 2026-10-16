@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -21,6 +21,9 @@ export default function Home() {
   const [pendingCount, setPendingCount] = useState(0);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedHealth, setExpandedHealth] = useState(null); // routineId
+  const [healthDraft, setHealthDraft] = useState({});         // { sleepHours, hrMax, hrMin, hrAvg }
+  const [savingHealth, setSavingHealth] = useState(false);
 
   const fetchData = () => {
     setLoading(true);
@@ -75,6 +78,33 @@ export default function Home() {
     </div>
   );
 
+  const openHealth = useCallback((r) => {
+    setExpandedHealth(r.id);
+    setHealthDraft({
+      sleepHours: r.sleepHours ?? '',
+      hrMax: r.hrMax ?? '',
+      hrMin: r.hrMin ?? '',
+      hrAvg: r.hrAvg ?? '',
+    });
+  }, []);
+
+  const saveHealth = useCallback(async (r) => {
+    if (!r.sessionId) return;
+    setSavingHealth(true);
+    try {
+      await axios.patch(`/api/workouts/${r.sessionId}/health-stats`, healthDraft);
+      setHistory(prev => prev.map(h => h.id === r.id
+        ? { ...h, sleepHours: healthDraft.sleepHours !== '' ? parseFloat(healthDraft.sleepHours) : null,
+            hrMax: healthDraft.hrMax !== '' ? parseInt(healthDraft.hrMax) : null,
+            hrMin: healthDraft.hrMin !== '' ? parseInt(healthDraft.hrMin) : null,
+            hrAvg: healthDraft.hrAvg !== '' ? parseInt(healthDraft.hrAvg) : null }
+        : h
+      ));
+      setExpandedHealth(null);
+    } catch {}
+    setSavingHealth(false);
+  }, [healthDraft]);
+
   const HistorySection = () => {
     if (history.length === 0) return null;
     return (
@@ -88,19 +118,113 @@ export default function Home() {
               Mes {mes}
             </p>
             <div className="space-y-2">
-              {historyByMes[mes].map(r => (
-                <div key={r.id} className="card flex items-center justify-between py-3 px-4">
-                  <p className="font-bold text-white text-sm">{r.name}</p>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-gray-500">
-                      {new Date(r.completedAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
-                    </span>
-                    <span className="bg-brand-500/20 text-brand-400 text-xs font-bold px-2 py-0.5 rounded-full">
-                      Completada
-                    </span>
+              {historyByMes[mes].map(r => {
+                const hasHealth = r.sleepHours != null || r.hrAvg != null;
+                const isExpanded = expandedHealth === r.id;
+                return (
+                  <div key={r.id} className="card py-3 px-4">
+                    {/* Fila principal */}
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-white text-sm">{r.name}</p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-gray-500">
+                          {new Date(r.completedAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                        </span>
+                        <span className="bg-brand-500/20 text-brand-400 text-xs font-bold px-2 py-0.5 rounded-full">✓</span>
+                      </div>
+                    </div>
+
+                    {/* Datos de salud resumidos */}
+                    {hasHealth && !isExpanded && (
+                      <button
+                        onClick={() => openHealth(r)}
+                        className="mt-2 flex items-center gap-3 text-[11px] text-gray-400 w-full text-left"
+                      >
+                        {r.sleepHours != null && <span>💤 {r.sleepHours}h</span>}
+                        {r.hrAvg != null && <span>❤️ {r.hrAvg} ppm avg</span>}
+                        {r.hrMax != null && <span className="text-red-400">↑{r.hrMax}</span>}
+                        {r.hrMin != null && <span className="text-green-400">↓{r.hrMin}</span>}
+                        <span className="ml-auto text-gray-600 text-[10px]">editar</span>
+                      </button>
+                    )}
+
+                    {/* Botón agregar (sin datos) */}
+                    {!hasHealth && !isExpanded && r.sessionId && (
+                      <button
+                        onClick={() => openHealth(r)}
+                        className="mt-2 flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-400 transition-colors"
+                      >
+                        <span>+ Agregar sueño y frecuencia cardíaca</span>
+                      </button>
+                    )}
+
+                    {/* Formulario expandido */}
+                    {isExpanded && (
+                      <div className="mt-3 pt-3 border-t border-gray-700/60 space-y-3">
+                        {/* Sueño */}
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-400 mb-1">
+                            💤 Horas de sueño
+                            <span className="text-gray-600 font-normal ml-1">(podés verlo en tu celular o smartwatch)</span>
+                          </p>
+                          <input
+                            type="number"
+                            min="1" max="14" step="0.5"
+                            placeholder="ej. 7.5"
+                            value={healthDraft.sleepHours}
+                            onChange={e => setHealthDraft(d => ({ ...d, sleepHours: e.target.value }))}
+                            className="w-full bg-gray-800 rounded-xl px-3 py-2 text-white text-sm outline-none"
+                          />
+                        </div>
+
+                        {/* FC */}
+                        <div>
+                          <p className="text-[11px] font-bold text-gray-400 mb-1">
+                            ❤️ Frecuencia cardíaca del entrenamiento
+                            <span className="text-gray-600 font-normal ml-1">(de tu smartwatch)</span>
+                          </p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {[
+                              { key: 'hrMax', label: 'Máx', color: 'text-red-400' },
+                              { key: 'hrMin', label: 'Mín', color: 'text-green-400' },
+                              { key: 'hrAvg', label: 'Prom', color: 'text-yellow-400' },
+                            ].map(({ key, label, color }) => (
+                              <div key={key}>
+                                <p className={`text-[10px] font-bold mb-0.5 ${color}`}>{label}</p>
+                                <input
+                                  type="number"
+                                  min="40" max="220"
+                                  placeholder="ppm"
+                                  value={healthDraft[key]}
+                                  onChange={e => setHealthDraft(d => ({ ...d, [key]: e.target.value }))}
+                                  className="w-full bg-gray-800 rounded-xl px-2 py-2 text-white text-sm outline-none text-center"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Acciones */}
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => setExpandedHealth(null)}
+                            className="flex-1 py-2 rounded-xl bg-gray-800 text-gray-400 text-xs font-bold"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={() => saveHealth(r)}
+                            disabled={savingHealth}
+                            className="flex-1 py-2 rounded-xl bg-brand-500 text-white text-xs font-black disabled:opacity-50"
+                          >
+                            {savingHealth ? '...' : 'Guardar'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}
