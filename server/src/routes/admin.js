@@ -747,10 +747,12 @@ function sheetToCsvUrl(url) {
   if (!idMatch) return null;
   const spreadsheetId = idMatch[1];
   const gidMatch = url.match(/[#&?]gid=(\d+)/);
-  if (gidMatch) {
-    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gidMatch[1]}`;
+  const gid = gidMatch ? gidMatch[1] : null;
+  // Solo respetar el gid si es distinto de 0 (0 = primera hoja por defecto)
+  if (gid && gid !== '0') {
+    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`;
   }
-  // Sin gid explícito: buscar la hoja "vista-web" por nombre
+  // Sin gid o gid=0: buscar la hoja "vista-web" por nombre
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=vista-web`;
 }
 
