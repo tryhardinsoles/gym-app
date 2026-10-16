@@ -745,10 +745,13 @@ router.post('/migrate-exercise-logs', requireAdmin, async (req, res) => {
 function sheetToCsvUrl(url) {
   const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
   if (!idMatch) return null;
+  const spreadsheetId = idMatch[1];
   const gidMatch = url.match(/[#&?]gid=(\d+)/);
-  let csvUrl = `https://docs.google.com/spreadsheets/d/${idMatch[1]}/export?format=csv`;
-  if (gidMatch) csvUrl += `&gid=${gidMatch[1]}`;
-  return csvUrl;
+  if (gidMatch) {
+    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gidMatch[1]}`;
+  }
+  // Sin gid explícito: buscar la hoja "vista-web" por nombre
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=vista-web`;
 }
 
 async function fetchSheetCsv(sheetUrl) {
