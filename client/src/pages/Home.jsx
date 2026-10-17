@@ -84,7 +84,20 @@ function HistorySection({ history, historyMesNumbers, historyByMes, expandedHeal
                               <input
                                 type="number" min="40" max="220" placeholder="ppm"
                                 value={healthDraft[key]}
-                                onChange={e => setHealthDraft(d => ({ ...d, [key]: e.target.value }))}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setHealthDraft(d => {
+                                    const next = { ...d, [key]: val };
+                                    if (key === 'hrMax' || key === 'hrMin') {
+                                      const max = parseFloat(key === 'hrMax' ? val : d.hrMax);
+                                      const min = parseFloat(key === 'hrMin' ? val : d.hrMin);
+                                      if (!isNaN(max) && !isNaN(min)) {
+                                        next.hrAvg = String(Math.round((max + min) / 2));
+                                      }
+                                    }
+                                    return next;
+                                  });
+                                }}
                                 className="w-full bg-gray-800 rounded-xl px-2 py-2 text-white text-sm outline-none text-center"
                               />
                             </div>
