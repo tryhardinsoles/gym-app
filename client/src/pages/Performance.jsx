@@ -4,9 +4,9 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import {
+  ComposedChart,
   LineChart, Line,
   BarChart, Bar, Cell,
-  ScatterChart, Scatter, ZAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 
@@ -79,6 +79,7 @@ export default function Performance() {
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState('exercises'); // 'exercises' | 'wellbeing' | 'health'
   const [xMode, setXMode] = useState('date');
+  const [healthXMode, setHealthXMode] = useState('date');
   const [loading, setLoading] = useState(true);
   const [healthCorr, setHealthCorr] = useState([]);
 
@@ -380,140 +381,179 @@ export default function Performance() {
               </div>
               <p className="text-white font-black text-lg mb-2">Pocos datos aún</p>
               <p className="text-gray-500 text-sm leading-relaxed">
-                Registrá sueño y FC en al menos 3 entrenamientos para ver el análisis de correlación.
+                Registrá sueño y FC en al menos 3 entrenamientos para ver el análisis.
               </p>
             </div>
           ) : (() => {
-            const wbVsHr = healthCorr.filter(d => d.wellbeing != null && d.hrAvg != null)
-              .map(d => ({ x: d.wellbeing, y: d.hrAvg, date: d.date }));
-            const sleepVsHr = healthCorr.filter(d => d.sleepHours != null && d.hrAvg != null)
-              .map(d => ({ x: d.sleepHours, y: d.hrAvg, date: d.date }));
+            const healthData = healthCorr.map((d, i) => ({
+              ...d,
+              classLabel: `Ses. ${i + 1}`,
+            }));
+            const xKey = healthXMode === 'date' ? 'date' : 'classLabel';
 
-            const corrCoeff = (pts) => {
-              if (pts.length < 3) return null;
-              const n = pts.length;
-              const mx = pts.reduce((s, p) => s + p.x, 0) / n;
-              const my = pts.reduce((s, p) => s + p.y, 0) / n;
-              const num = pts.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0);
-              const den = Math.sqrt(
-                pts.reduce((s, p) => s + (p.x - mx) ** 2, 0) *
-                pts.reduce((s, p) => s + (p.y - my) ** 2, 0)
-              );
-              return den === 0 ? null : parseFloat((num / den).toFixed(2));
-            };
-
-            const corrLabel = (r) => {
-              if (r == null) return null;
-              const abs = Math.abs(r);
-              const dir = r > 0 ? 'positiva' : 'negativa';
-              if (abs >= 0.7) return { text: `Correlación fuerte ${dir}`, color: abs >= 0.7 && r < 0 ? '#4ade80' : '#f87171' };
-              if (abs >= 0.4) return { text: `Correlación moderada ${dir}`, color: '#facc15' };
-              return { text: 'Sin correlación clara', color: '#6b7280' };
-            };
-
-            const ScatterTooltip = ({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const { x, y, date } = payload[0].payload;
-              return (
-                <div className="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-xs shadow-xl">
-                  <p className="text-gray-400 mb-1">{date}</p>
-                  <p className="text-white">{payload[0].name === 'wbHr' ? `Bienestar: ${x}/10` : `Sueño: ${x}h`}</p>
-                  <p className="text-red-400">FC avg: {y} ppm</p>
-                </div>
-              );
-            };
-
-            const rWb   = corrCoeff(wbVsHr);
-            const rSleep = corrCoeff(sleepVsHr);
+            const withHr    = healthCorr.filter(d => d.hrMax != null);
+            const withSleep = healthCorr.filter(d => d.sleepHours != null);
+            const withWb    = healthCorr.filter(d => d.wellbeing != null);
 
             return (
               <>
                 {/* Summary cards */}
-                <div className="grid grid-cols-3 gap-2 mb-5">
+                <div className="grid grid-cols-3 gap-2 mb-4">
                   <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
                     <p className="text-xl font-black text-white">{healthCorr.length}</p>
                     <p className="text-gray-600 text-[10px] mt-0.5">sesiones</p>
                   </div>
                   <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
                     <p className="text-xl font-black text-red-400">
-                      {healthCorr.filter(d => d.hrAvg).length > 0
-                        ? Math.round(healthCorr.filter(d => d.hrAvg).reduce((s, d) => s + d.hrAvg, 0) / healthCorr.filter(d => d.hrAvg).length)
+                      {withHr.length > 0
+                        ? Math.round(withHr.reduce((s, d) => s + d.hrMax, 0) / withHr.length)
                         : '—'}
                     </p>
-                    <p className="text-gray-600 text-[10px] mt-0.5">FC avg ppm</p>
+                    <p className="text-gray-600 text-[10px] mt-0.5">FC máx avg</p>
                   </div>
                   <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
-                    <p className="text-xl font-black text-blue-400">
-                      {healthCorr.filter(d => d.sleepHours).length > 0
-                        ? parseFloat((healthCorr.filter(d => d.sleepHours).reduce((s, d) => s + d.sleepHours, 0) / healthCorr.filter(d => d.sleepHours).length).toFixed(1))
+                    <p className="text-xl font-black text-green-400">
+                      {withSleep.length > 0
+                        ? parseFloat((withSleep.reduce((s, d) => s + d.sleepHours, 0) / withSleep.length).toFixed(1))
                         : '—'}
                     </p>
                     <p className="text-gray-600 text-[10px] mt-0.5">sueño avg h</p>
                   </div>
                 </div>
 
-                {/* Scatter: Bienestar vs FC */}
-                {wbVsHr.length >= 3 && (
-                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
-                    <p className="text-white font-black text-sm">Bienestar vs FC promedio</p>
-                    <p className="text-gray-600 text-[10px] mb-1">¿Cuándo te sentís mejor, el corazón trabaja menos?</p>
-                    {corrLabel(rWb) && (
-                      <p className="text-[10px] font-bold mb-3" style={{ color: corrLabel(rWb).color }}>
-                        {corrLabel(rWb).text} (r = {rWb})
-                      </p>
-                    )}
-                    <ResponsiveContainer width="100%" height={180}>
-                      <ScatterChart margin={{ top: 4, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-                        <XAxis type="number" dataKey="x" name="wbHr" domain={[1, 10]} ticks={[1,2,3,4,5,6,7,8,9,10]}
-                          tick={{ fill: '#555', fontSize: 9 }} axisLine={{ stroke: '#222' }} tickLine={false}
-                          label={{ value: 'Bienestar', fill: '#555', fontSize: 9, position: 'insideBottom', offset: -2 }} />
-                        <YAxis type="number" dataKey="y" name="wbHr"
-                          domain={[d => Math.floor(d * 0.9), d => Math.ceil(d * 1.05)]}
-                          tick={{ fill: '#555', fontSize: 9 }} axisLine={false} tickLine={false}
-                          label={{ value: 'ppm', fill: '#555', fontSize: 9, angle: -90, position: 'insideLeft', offset: 10 }} />
-                        <ZAxis range={[40, 40]} />
-                        <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-                        <Scatter data={wbVsHr} fill="#e01020" fillOpacity={0.8} />
-                      </ScatterChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
+                {/* X mode toggle */}
+                <div className="flex items-center gap-1 bg-gray-900 rounded-xl p-0.5 mb-4">
+                  {['date', 'class'].map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setHealthXMode(mode)}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                        healthXMode === mode ? 'bg-gray-700 text-white' : 'text-gray-500'
+                      }`}
+                    >
+                      {mode === 'date' ? 'Fecha' : 'N° sesión'}
+                    </button>
+                  ))}
+                </div>
 
-                {/* Scatter: Sueño vs FC */}
-                {sleepVsHr.length >= 3 && (
-                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                    <p className="text-white font-black text-sm">Sueño vs FC promedio</p>
-                    <p className="text-gray-600 text-[10px] mb-1">¿Más horas de sueño = FC más baja?</p>
-                    {corrLabel(rSleep) && (
-                      <p className="text-[10px] font-bold mb-3" style={{ color: corrLabel(rSleep).color }}>
-                        {corrLabel(rSleep).text} (r = {rSleep})
-                      </p>
-                    )}
-                    <ResponsiveContainer width="100%" height={180}>
-                      <ScatterChart margin={{ top: 4, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
-                        <XAxis type="number" dataKey="x" name="sleepHr"
-                          domain={[d => Math.floor(d - 1), d => Math.ceil(d + 1)]}
-                          tick={{ fill: '#555', fontSize: 9 }} axisLine={{ stroke: '#222' }} tickLine={false}
-                          label={{ value: 'Horas de sueño', fill: '#555', fontSize: 9, position: 'insideBottom', offset: -2 }} />
-                        <YAxis type="number" dataKey="y" name="sleepHr"
-                          domain={[d => Math.floor(d * 0.9), d => Math.ceil(d * 1.05)]}
-                          tick={{ fill: '#555', fontSize: 9 }} axisLine={false} tickLine={false}
-                          label={{ value: 'ppm', fill: '#555', fontSize: 9, angle: -90, position: 'insideLeft', offset: 10 }} />
-                        <ZAxis range={[40, 40]} />
-                        <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-                        <Scatter data={sleepVsHr} fill="#3b82f6" fillOpacity={0.8} />
-                      </ScatterChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
+                {/* Combined chart */}
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                  <p className="text-white font-black text-sm mb-3">Salud por sesión</p>
 
-                {wbVsHr.length < 3 && sleepVsHr.length < 3 && (
-                  <div className="bg-gray-900 border border-gray-800 rounded-2xl py-6 text-center">
-                    <p className="text-gray-600 text-xs">Necesitás más datos para ver los gráficos de correlación.</p>
+                  {/* Legend */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-4">
+                    {[
+                      { color: '#e01020', opacity: 0.65, shape: 'bar',  label: 'Bienestar' },
+                      { color: '#4ade80', opacity: 1,    shape: 'line', label: 'Sueño (h)' },
+                      { color: '#ef4444', opacity: 1,    shape: 'dot',  label: 'FC máx' },
+                      { color: '#3b82f6', opacity: 1,    shape: 'dot',  label: 'FC mín' },
+                    ].map(({ color, opacity, shape, label }) => (
+                      <span key={label} className="flex items-center gap-1.5 text-[10px] text-gray-400">
+                        {shape === 'bar'  && <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: color, opacity }} />}
+                        {shape === 'line' && <span className="w-4 h-0.5 inline-block rounded" style={{ backgroundColor: color }} />}
+                        {shape === 'dot'  && <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: color }} />}
+                        {label}
+                      </span>
+                    ))}
+                    <span className="text-[9px] text-gray-600 ml-auto self-center">izq: 0–14 · der: ppm</span>
                   </div>
-                )}
+
+                  <ResponsiveContainer width="100%" height={240}>
+                    <ComposedChart data={healthData} margin={{ top: 4, right: 38, left: -22, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+                      <XAxis
+                        dataKey={xKey}
+                        tick={{ fill: '#555', fontSize: 8 }}
+                        axisLine={{ stroke: '#222' }}
+                        tickLine={false}
+                        interval="preserveStartEnd"
+                      />
+                      {/* Left Y: bienestar (0-10) + sueño (0-14h) */}
+                      <YAxis
+                        yAxisId="left"
+                        domain={[0, 14]}
+                        ticks={[0, 2, 4, 6, 8, 10, 12, 14]}
+                        tick={{ fill: '#555', fontSize: 8 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      {/* Right Y: FC (ppm) */}
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        domain={([dataMin, dataMax]) => [
+                          Math.max(40, Math.floor(dataMin * 0.9)),
+                          Math.ceil(dataMax * 1.05),
+                        ]}
+                        tick={{ fill: '#555', fontSize: 8 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          const d = payload[0]?.payload ?? {};
+                          return (
+                            <div className="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-xs shadow-xl space-y-0.5">
+                              <p className="text-gray-400 mb-1">{label}</p>
+                              {d.wellbeing  != null && <p className="text-brand-400">Bienestar: {d.wellbeing}/10</p>}
+                              {d.sleepHours != null && <p className="text-green-400">Sueño: {d.sleepHours}h</p>}
+                              {d.hrMax      != null && <p className="text-red-400">FC máx: {d.hrMax} ppm</p>}
+                              {d.hrMin      != null && <p className="text-blue-400">FC mín: {d.hrMin} ppm</p>}
+                            </div>
+                          );
+                        }}
+                        cursor={{ stroke: '#333' }}
+                      />
+                      {/* Barra: bienestar */}
+                      <Bar
+                        yAxisId="left"
+                        dataKey="wellbeing"
+                        fill="#e01020"
+                        fillOpacity={0.65}
+                        radius={[3, 3, 0, 0]}
+                        maxBarSize={28}
+                        animationDuration={600}
+                      />
+                      {/* Línea verde: sueño */}
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="sleepHours"
+                        stroke="#4ade80"
+                        strokeWidth={2}
+                        dot={{ fill: '#4ade80', r: 3, strokeWidth: 0 }}
+                        activeDot={{ r: 5, fill: '#4ade80' }}
+                        connectNulls
+                        animationDuration={600}
+                      />
+                      {/* Puntos rojos: FC máx */}
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="hrMax"
+                        stroke="transparent"
+                        strokeWidth={0}
+                        dot={{ fill: '#ef4444', r: 4, strokeWidth: 0 }}
+                        activeDot={{ r: 6, fill: '#ef4444' }}
+                        connectNulls={false}
+                        animationDuration={600}
+                      />
+                      {/* Puntos azules: FC mín */}
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="hrMin"
+                        stroke="transparent"
+                        strokeWidth={0}
+                        dot={{ fill: '#3b82f6', r: 4, strokeWidth: 0 }}
+                        activeDot={{ r: 6, fill: '#3b82f6' }}
+                        connectNulls={false}
+                        animationDuration={600}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
               </>
             );
           })()}
