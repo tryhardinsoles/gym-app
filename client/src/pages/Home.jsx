@@ -7,8 +7,12 @@ import { getRandomQuote } from '../data/quotes.js';
 import WellbeingScale from '../components/WellbeingScale.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import StarBorder from '../components/StarBorder.jsx';
+import OnboardingOverlay from '../components/OnboardingOverlay.jsx';
 
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
+const IS_IOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const IS_STANDALONE = window.navigator.standalone === true
+  || window.matchMedia('(display-mode: standalone)').matches;
 
 function HistorySection({ history, historyMesNumbers, historyByMes, expandedHealth, healthDraft, savingHealth, openHealth, saveHealth, setExpandedHealth, setHealthDraft }) {
   if (history.length === 0) return null;
@@ -138,6 +142,24 @@ export default function Home() {
   const [expandedHealth, setExpandedHealth] = useState(null);
   const [healthDraft, setHealthDraft] = useState({});
   const [savingHealth, setSavingHealth] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [appInstalled, setAppInstalled] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const seen = localStorage.getItem(`onboarded_${user.id}`);
+      if (!seen) setShowOnboarding(true);
+    } catch {}
+  }, [user]);
+
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', () => setAppInstalled(true));
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   const fetchData = () => {
     setLoading(true);
@@ -252,9 +274,39 @@ export default function Home() {
     </div>
   );
 
+  const InstallBanner = () => {
+    if (IS_STANDALONE || appInstalled) return null;
+    const isIOS = IS_IOS;
+    if (!isIOS && !installPrompt) return null;
+    return (
+      <div className="mt-4 bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex items-center gap-3">
+        <span className="text-2xl shrink-0">📲</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-xs font-bold">Guardala en tu celular</p>
+          <p className="text-gray-600 text-[10px]">
+            {isIOS ? 'Compartir → Agregar a pantalla de inicio' : 'Instalá la app para acceso rápido'}
+          </p>
+        </div>
+        {!isIOS && installPrompt && (
+          <button
+            onClick={async () => {
+              installPrompt.prompt();
+              const { outcome } = await installPrompt.userChoice;
+              if (outcome === 'accepted') setAppInstalled(true);
+            }}
+            className="shrink-0 bg-brand-500 text-white text-xs font-black px-3 py-1.5 rounded-xl"
+          >
+            Instalar
+          </button>
+        )}
+      </div>
+    );
+  };
+
   // Sin rutinas pendientes → mostrar cita motivacional + historial
   if (!hasPending) return (
     <div className="min-h-screen p-4 max-w-lg mx-auto">
+      {showOnboarding && <OnboardingOverlay userId={user?.id} onDone={() => setShowOnboarding(false)} />}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} logout={logout} />
       <Header />
 
@@ -285,12 +337,14 @@ export default function Home() {
         </div>
       </div>
 
+      <InstallBanner />
       <HistorySection history={history} historyMesNumbers={historyMesNumbers} historyByMes={historyByMes} expandedHealth={expandedHealth} healthDraft={healthDraft} savingHealth={savingHealth} openHealth={openHealth} saveHealth={saveHealth} setExpandedHealth={setExpandedHealth} setHealthDraft={setHealthDraft} />
     </div>
   );
 
   return (
     <div className="min-h-screen p-4 max-w-lg mx-auto">
+      {showOnboarding && <OnboardingOverlay userId={user?.id} onDone={() => setShowOnboarding(false)} />}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} logout={logout} />
       <Header />
 
@@ -334,6 +388,7 @@ export default function Home() {
         </StarBorder>
       </div>
 
+      <InstallBanner />
       <HistorySection history={history} historyMesNumbers={historyMesNumbers} historyByMes={historyByMes} expandedHealth={expandedHealth} healthDraft={healthDraft} savingHealth={savingHealth} openHealth={openHealth} saveHealth={saveHealth} setExpandedHealth={setExpandedHealth} setHealthDraft={setHealthDraft} />
     </div>
   );
