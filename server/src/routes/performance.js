@@ -12,6 +12,51 @@ function formatDate(d) {
   return `${day}/${month}`;
 }
 
+router.get('/health-correlation', requireAuth, async (req, res) => {
+  const [sessions, wellbeingLogs] = await Promise.all([
+    prisma.workoutSession.findMany({
+      where: {
+        userId: req.user.id,
+        completedAt: { not: null },
+        OR: [{ hrAvg: { not: null } }, { sleepHours: { not: null } }],
+      },
+      orderBy: { completedAt: 'asc' },
+    }),
+    prisma.wellbeingLog.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: 'asc' },
+    }),
+  ]);
+
+  const pairs = [];
+  for (const session of sessions) {
+    const completedAt = new Date(session.completedAt);
+    const windowStart = new Date(completedAt.getTime() - 12 * 60 * 60 * 1000);
+
+    const candidates = wellbeingLogs.filter(l => {
+      const t = new Date(l.createdAt).getTime();
+      return t >= windowStart.getTime() && t <= completedAt.getTime();
+    });
+    if (candidates.length === 0) continue;
+
+    const closest = candidates.reduce((prev, curr) =>
+      Math.abs(new Date(curr.createdAt) - completedAt) < Math.abs(new Date(prev.createdAt) - completedAt)
+        ? curr : prev
+    );
+
+    pairs.push({
+      date: formatDate(session.completedAt),
+      wellbeing: closest.score,
+      hrAvg: session.hrAvg,
+      hrMax: session.hrMax,
+      hrMin: session.hrMin,
+      sleepHours: session.sleepHours,
+    });
+  }
+
+  res.json(pairs);
+});
+
 router.get('/', requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },

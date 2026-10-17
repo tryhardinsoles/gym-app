@@ -6,6 +6,7 @@ import Sidebar from '../components/Sidebar.jsx';
 import {
   LineChart, Line,
   BarChart, Bar, Cell,
+  ScatterChart, Scatter, ZAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 
@@ -76,14 +77,19 @@ export default function Performance() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [data, setData] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [tab, setTab] = useState('exercises'); // 'exercises' | 'wellbeing'
+  const [tab, setTab] = useState('exercises'); // 'exercises' | 'wellbeing' | 'health'
   const [xMode, setXMode] = useState('date');
   const [loading, setLoading] = useState(true);
+  const [healthCorr, setHealthCorr] = useState([]);
 
   useEffect(() => {
-    axios.get('/api/performance').then(({ data }) => {
-      setData(data);
-      if (data.exercises?.length > 0) setSelected(data.exercises[0].id);
+    Promise.all([
+      axios.get('/api/performance'),
+      axios.get('/api/performance/health-correlation'),
+    ]).then(([perfRes, corrRes]) => {
+      setData(perfRes.data);
+      if (perfRes.data.exercises?.length > 0) setSelected(perfRes.data.exercises[0].id);
+      setHealthCorr(corrRes.data || []);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -169,30 +175,37 @@ export default function Performance() {
       <div className="flex items-center gap-2 px-4 pt-5 pb-3 shrink-0">
         <HamburgerButton open={sidebarOpen} onClick={() => setSidebarOpen(v => !v)} />
 
-        {/* Tabs — pill animado */}
-        <div className="relative flex flex-1 items-center bg-gray-900 rounded-2xl p-1 mx-1">
-          {/* Pill deslizante */}
-          <div
-            className="absolute top-1 bottom-1 w-[calc(50%-2px)] bg-gray-700 rounded-xl transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-            style={{ transform: tab === 'exercises' ? 'translateX(0)' : 'translateX(calc(100% + 4px))' }}
-          />
-          <button
-            onClick={() => setTab('exercises')}
-            className={`relative flex-1 py-1.5 rounded-xl text-xs font-black transition-colors duration-200 z-10 ${
-              tab === 'exercises' ? 'text-white' : 'text-gray-500'
-            }`}
-          >
-            Ejercicios
-          </button>
-          <button
-            onClick={() => setTab('wellbeing')}
-            className={`relative flex-1 py-1.5 rounded-xl text-xs font-black transition-colors duration-200 z-10 ${
-              tab === 'wellbeing' ? 'text-white' : 'text-gray-500'
-            }`}
-          >
-            Percepción
-          </button>
-        </div>
+        {/* Tabs — pill animado (3 tabs) */}
+        {(() => {
+          const TABS = [
+            { key: 'exercises', label: 'Ejercicios' },
+            { key: 'wellbeing', label: 'Percepción' },
+            { key: 'health',    label: 'Salud' },
+          ];
+          const tabIdx = TABS.findIndex(t => t.key === tab);
+          return (
+            <div className="relative flex flex-1 items-center bg-gray-900 rounded-2xl p-1 mx-1">
+              <div
+                className="absolute top-1 bottom-1 bg-gray-700 rounded-xl transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+                style={{
+                  width: 'calc((100% - 8px) / 3)',
+                  left: `calc(4px + ${tabIdx} * (100% - 8px) / 3)`,
+                }}
+              />
+              {TABS.map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`relative flex-1 py-1.5 rounded-xl text-[10px] font-black transition-colors duration-200 z-10 ${
+                    tab === t.key ? 'text-white' : 'text-gray-500'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Home button */}
         <button
@@ -353,6 +366,158 @@ export default function Performance() {
             </div>
           </div>
         )
+      )}
+
+      {/* ── Tab: Salud ───────────────────────────────────────────────────── */}
+      {tab === 'health' && (
+        <div className="flex-1 overflow-y-auto px-4 py-3 pb-8">
+          {healthCorr.length < 3 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center px-6">
+              <div className="w-16 h-16 rounded-3xl bg-gray-800 flex items-center justify-center mb-5">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
+              </div>
+              <p className="text-white font-black text-lg mb-2">Pocos datos aún</p>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                Registrá sueño y FC en al menos 3 entrenamientos para ver el análisis de correlación.
+              </p>
+            </div>
+          ) : (() => {
+            const wbVsHr = healthCorr.filter(d => d.wellbeing != null && d.hrAvg != null)
+              .map(d => ({ x: d.wellbeing, y: d.hrAvg, date: d.date }));
+            const sleepVsHr = healthCorr.filter(d => d.sleepHours != null && d.hrAvg != null)
+              .map(d => ({ x: d.sleepHours, y: d.hrAvg, date: d.date }));
+
+            const corrCoeff = (pts) => {
+              if (pts.length < 3) return null;
+              const n = pts.length;
+              const mx = pts.reduce((s, p) => s + p.x, 0) / n;
+              const my = pts.reduce((s, p) => s + p.y, 0) / n;
+              const num = pts.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0);
+              const den = Math.sqrt(
+                pts.reduce((s, p) => s + (p.x - mx) ** 2, 0) *
+                pts.reduce((s, p) => s + (p.y - my) ** 2, 0)
+              );
+              return den === 0 ? null : parseFloat((num / den).toFixed(2));
+            };
+
+            const corrLabel = (r) => {
+              if (r == null) return null;
+              const abs = Math.abs(r);
+              const dir = r > 0 ? 'positiva' : 'negativa';
+              if (abs >= 0.7) return { text: `Correlación fuerte ${dir}`, color: abs >= 0.7 && r < 0 ? '#4ade80' : '#f87171' };
+              if (abs >= 0.4) return { text: `Correlación moderada ${dir}`, color: '#facc15' };
+              return { text: 'Sin correlación clara', color: '#6b7280' };
+            };
+
+            const ScatterTooltip = ({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const { x, y, date } = payload[0].payload;
+              return (
+                <div className="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-xs shadow-xl">
+                  <p className="text-gray-400 mb-1">{date}</p>
+                  <p className="text-white">{payload[0].name === 'wbHr' ? `Bienestar: ${x}/10` : `Sueño: ${x}h`}</p>
+                  <p className="text-red-400">FC avg: {y} ppm</p>
+                </div>
+              );
+            };
+
+            const rWb   = corrCoeff(wbVsHr);
+            const rSleep = corrCoeff(sleepVsHr);
+
+            return (
+              <>
+                {/* Summary cards */}
+                <div className="grid grid-cols-3 gap-2 mb-5">
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
+                    <p className="text-xl font-black text-white">{healthCorr.length}</p>
+                    <p className="text-gray-600 text-[10px] mt-0.5">sesiones</p>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
+                    <p className="text-xl font-black text-red-400">
+                      {healthCorr.filter(d => d.hrAvg).length > 0
+                        ? Math.round(healthCorr.filter(d => d.hrAvg).reduce((s, d) => s + d.hrAvg, 0) / healthCorr.filter(d => d.hrAvg).length)
+                        : '—'}
+                    </p>
+                    <p className="text-gray-600 text-[10px] mt-0.5">FC avg ppm</p>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 text-center">
+                    <p className="text-xl font-black text-blue-400">
+                      {healthCorr.filter(d => d.sleepHours).length > 0
+                        ? parseFloat((healthCorr.filter(d => d.sleepHours).reduce((s, d) => s + d.sleepHours, 0) / healthCorr.filter(d => d.sleepHours).length).toFixed(1))
+                        : '—'}
+                    </p>
+                    <p className="text-gray-600 text-[10px] mt-0.5">sueño avg h</p>
+                  </div>
+                </div>
+
+                {/* Scatter: Bienestar vs FC */}
+                {wbVsHr.length >= 3 && (
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-4">
+                    <p className="text-white font-black text-sm">Bienestar vs FC promedio</p>
+                    <p className="text-gray-600 text-[10px] mb-1">¿Cuándo te sentís mejor, el corazón trabaja menos?</p>
+                    {corrLabel(rWb) && (
+                      <p className="text-[10px] font-bold mb-3" style={{ color: corrLabel(rWb).color }}>
+                        {corrLabel(rWb).text} (r = {rWb})
+                      </p>
+                    )}
+                    <ResponsiveContainer width="100%" height={180}>
+                      <ScatterChart margin={{ top: 4, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+                        <XAxis type="number" dataKey="x" name="wbHr" domain={[1, 10]} ticks={[1,2,3,4,5,6,7,8,9,10]}
+                          tick={{ fill: '#555', fontSize: 9 }} axisLine={{ stroke: '#222' }} tickLine={false}
+                          label={{ value: 'Bienestar', fill: '#555', fontSize: 9, position: 'insideBottom', offset: -2 }} />
+                        <YAxis type="number" dataKey="y" name="wbHr"
+                          domain={[d => Math.floor(d * 0.9), d => Math.ceil(d * 1.05)]}
+                          tick={{ fill: '#555', fontSize: 9 }} axisLine={false} tickLine={false}
+                          label={{ value: 'ppm', fill: '#555', fontSize: 9, angle: -90, position: 'insideLeft', offset: 10 }} />
+                        <ZAxis range={[40, 40]} />
+                        <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                        <Scatter data={wbVsHr} fill="#e01020" fillOpacity={0.8} />
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Scatter: Sueño vs FC */}
+                {sleepVsHr.length >= 3 && (
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                    <p className="text-white font-black text-sm">Sueño vs FC promedio</p>
+                    <p className="text-gray-600 text-[10px] mb-1">¿Más horas de sueño = FC más baja?</p>
+                    {corrLabel(rSleep) && (
+                      <p className="text-[10px] font-bold mb-3" style={{ color: corrLabel(rSleep).color }}>
+                        {corrLabel(rSleep).text} (r = {rSleep})
+                      </p>
+                    )}
+                    <ResponsiveContainer width="100%" height={180}>
+                      <ScatterChart margin={{ top: 4, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" />
+                        <XAxis type="number" dataKey="x" name="sleepHr"
+                          domain={[d => Math.floor(d - 1), d => Math.ceil(d + 1)]}
+                          tick={{ fill: '#555', fontSize: 9 }} axisLine={{ stroke: '#222' }} tickLine={false}
+                          label={{ value: 'Horas de sueño', fill: '#555', fontSize: 9, position: 'insideBottom', offset: -2 }} />
+                        <YAxis type="number" dataKey="y" name="sleepHr"
+                          domain={[d => Math.floor(d * 0.9), d => Math.ceil(d * 1.05)]}
+                          tick={{ fill: '#555', fontSize: 9 }} axisLine={false} tickLine={false}
+                          label={{ value: 'ppm', fill: '#555', fontSize: 9, angle: -90, position: 'insideLeft', offset: 10 }} />
+                        <ZAxis range={[40, 40]} />
+                        <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                        <Scatter data={sleepVsHr} fill="#3b82f6" fillOpacity={0.8} />
+                      </ScatterChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {wbVsHr.length < 3 && sleepVsHr.length < 3 && (
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl py-6 text-center">
+                    <p className="text-gray-600 text-xs">Necesitás más datos para ver los gráficos de correlación.</p>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
       )}
 
       {/* ── Tab: Percepción de esfuerzo ──────────────────────────────────── */}
