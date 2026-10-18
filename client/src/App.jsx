@@ -15,6 +15,7 @@ import Agenda from './pages/Agenda.jsx';
 import AdminAgenda from './pages/admin/AdminAgenda.jsx';
 import Performance from './pages/Performance.jsx';
 import Achievements from './pages/Achievements.jsx';
+import Settings from './pages/Settings.jsx';
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
           <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
           <Route path="/achievements" element={<ProtectedRoute><Achievements /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

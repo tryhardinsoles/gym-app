@@ -176,7 +176,6 @@ export default function Routine({ adminPlay = false }) {
   if (showConfetti) return (
     <ConfettiScreen
       onDone={() => navigate(adminPlay ? `/admin/users/${userId}` : '/')}
-      onTrainNow={!adminPlay ? () => navigate('/routine') : undefined}
     />
   );
 
@@ -251,17 +250,12 @@ export default function Routine({ adminPlay = false }) {
         className="flex flex-col overflow-hidden"
       >
         {/* Header del bloque */}
-        <div className="px-4 pt-3 pb-2 flex items-center gap-3 flex-shrink-0 border-b border-gray-800/60">
-          {/* Izquierda: nombre del bloque */}
+        <div className="relative px-4 pt-3 pb-2 flex items-center flex-shrink-0 border-b border-gray-800/60">
+          {/* Izquierda: nombre o volver */}
           {isOverview ? (
-            <button
-              onClick={() => navigate(adminPlay ? `/admin/users/${userId}` : '/')}
-              className="text-gray-500 hover:text-white text-sm font-bold transition-colors flex-1"
-            >
-              ← Volver
-            </button>
+            <div className="flex-1" />
           ) : (
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 pr-2">
               <h2 className="text-white font-black text-base leading-tight truncate">
                 {currentSection?.name}
               </h2>
@@ -269,28 +263,18 @@ export default function Routine({ adminPlay = false }) {
             </div>
           )}
 
-          {/* Centro: botón overview */}
-          <button
-            onClick={() => setIsOverview(v => !v)}
-            className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors flex-shrink-0 ${
-              isOverview ? 'bg-brand-500/20 text-brand-400' : 'bg-gray-800 text-gray-400 hover:text-white'
-            }`}
-            title={isOverview ? 'Volver al bloque' : 'Ver todos los bloques'}
-          >
-            {isOverview ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-              </svg>
-            )}
-          </button>
+          {/* Centro: texto toggle absolutamente centrado */}
+          <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+            <button
+              onClick={() => setIsOverview(v => !v)}
+              className="pointer-events-auto text-xs font-black text-gray-400 hover:text-white transition-colors px-3 py-1 rounded-xl hover:bg-gray-800/60"
+            >
+              {isOverview ? 'Ver bloque individual' : 'Vista general'}
+            </button>
+          </div>
 
           {/* Derecha: puntos de progreso */}
-          {!isOverview && (
+          {!isOverview ? (
             <div className="flex gap-1.5 flex-shrink-0">
               {activeSections.map((_, i) => (
                 <div
@@ -303,6 +287,8 @@ export default function Routine({ adminPlay = false }) {
                 />
               ))}
             </div>
+          ) : (
+            <div className="flex-shrink-0 w-4" />
           )}
         </div>
 
