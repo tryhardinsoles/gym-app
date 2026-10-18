@@ -249,47 +249,44 @@ export default function Routine({ adminPlay = false }) {
         style={{ height: isOverview ? '100%' : '65%', transition: TRANSITION }}
         className="flex flex-col overflow-hidden"
       >
-        {/* Header del bloque */}
-        <div className="relative px-4 pt-3 pb-2 flex items-center flex-shrink-0 border-b border-gray-800/60">
-          {/* Izquierda: nombre o volver */}
-          {isOverview ? (
-            <div className="flex-1" />
-          ) : (
-            <div className="min-w-0 flex-1 pr-2">
-              <h2 className="text-white font-black text-base leading-tight truncate">
-                {currentSection?.name}
-              </h2>
-              <p className="text-gray-500 text-xs mt-0.5 truncate">{routine?.name}</p>
-            </div>
-          )}
+        {/* Header del bloque — 3 columnas iguales */}
+        <div className="px-3 pt-3 pb-3 flex items-center flex-shrink-0 border-b border-gray-800/60" style={{ gap: 0 }}>
+          {/* 1/3 izquierda: nombre del bloque */}
+          <div className="w-1/3 min-w-0 pr-1">
+            {!isOverview && (
+              <>
+                <p className="text-white font-black text-[11px] leading-tight truncate">
+                  {currentSection?.name}
+                </p>
+                <p className="text-gray-500 text-[9px] mt-0.5 truncate">{routine?.name}</p>
+              </>
+            )}
+          </div>
 
-          {/* Centro: texto toggle absolutamente centrado */}
-          <div className="absolute inset-x-0 flex justify-center pointer-events-none">
+          {/* 1/3 centro: toggle */}
+          <div className="w-1/3 flex justify-center">
             <button
               onClick={() => setIsOverview(v => !v)}
-              className="pointer-events-auto text-xs font-black text-gray-400 hover:text-white transition-colors px-3 py-1 rounded-xl hover:bg-gray-800/60"
+              className="text-[10px] font-black text-gray-400 hover:text-white transition-colors px-2 py-1 rounded-xl hover:bg-gray-800/60 text-center leading-tight"
             >
-              {isOverview ? 'Ver bloque individual' : 'Vista general'}
+              {isOverview ? <>Ver bloque<br/>individual</> : <>Vista<br/>general</>}
             </button>
           </div>
 
-          {/* Derecha: puntos de progreso */}
-          {!isOverview ? (
-            <div className="flex gap-1.5 flex-shrink-0">
-              {activeSections.map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-1.5 w-5 rounded-full transition-all ${
-                    i < currentSectionIdx ? 'bg-brand-500' :
-                    i === currentSectionIdx ? 'bg-brand-400' :
-                    'bg-gray-700'
-                  }`}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex-shrink-0 w-4" />
-          )}
+          {/* 1/3 derecha: puntos de progreso */}
+          <div className="w-1/3 flex justify-end gap-1 pl-1">
+            {!isOverview && activeSections.map((_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 rounded-full transition-all flex-shrink-0 ${
+                  i < currentSectionIdx ? 'bg-brand-500' :
+                  i === currentSectionIdx ? 'bg-brand-400' :
+                  'bg-gray-700'
+                }`}
+                style={{ width: Math.max(8, Math.min(20, Math.floor(80 / activeSections.length))) }}
+              />
+            ))}
+          </div>
         </div>
 
         {isOverview ? (
