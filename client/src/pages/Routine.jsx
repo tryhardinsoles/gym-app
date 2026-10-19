@@ -394,31 +394,59 @@ export default function Routine({ adminPlay = false }) {
               ))}
             </div>
 
-            <div className="px-4 py-3 flex-shrink-0 flex gap-2">
-              <button
-                onClick={() => setCurrentSectionIdx(i => Math.max(0, i - 1))}
-                disabled={currentSectionIdx === 0}
-                className="w-1/5 bg-gray-800 hover:bg-gray-700 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                ←
-              </button>
-              {isLastSection ? (
-                <HoldButton
-                  onHold={handleNext}
-                  label="🏁 Mantener para finalizar"
-                  doneLabel="🏁 Finalizando..."
-                  holdTime={1200}
-                  className="w-4/5 bg-brand-500 text-white font-black py-4 rounded-2xl text-base"
-                />
-              ) : (
-                <button
-                  onClick={handleNext}
-                  className="w-4/5 bg-brand-500 hover:bg-brand-400 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all"
-                >
-                  Completar bloque →
-                </button>
-              )}
-            </div>
+            {(() => {
+              const exs = currentSection?.exercises ?? [];
+              const allDone = exs.length === 0 || exs.every(ex => feedbacks[ex.id]);
+              return (
+                <>
+                  {!allDone && (
+                    <p className="text-[11px] text-center text-yellow-500/70 pb-1 px-4">
+                      Completá el semáforo de todos los ejercicios para continuar
+                    </p>
+                  )}
+                  <div className="px-4 py-3 flex-shrink-0 flex gap-2">
+                    <button
+                      onClick={() => setCurrentSectionIdx(i => Math.max(0, i - 1))}
+                      disabled={currentSectionIdx === 0}
+                      className="w-1/5 bg-gray-800 hover:bg-gray-700 active:scale-95 text-white font-black py-4 rounded-2xl text-base transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      ←
+                    </button>
+                    {isLastSection ? (
+                      allDone ? (
+                        <HoldButton
+                          onHold={handleNext}
+                          label="🏁 Mantener para finalizar"
+                          doneLabel="🏁 Finalizando..."
+                          holdTime={1200}
+                          className="w-4/5 bg-brand-500 text-white font-black py-4 rounded-2xl text-base"
+                        />
+                      ) : (
+                        <button
+                          disabled
+                          className="w-4/5 bg-gray-800 text-gray-600 font-black py-4 rounded-2xl text-base cursor-not-allowed"
+                        >
+                          🏁 Completá el semáforo
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        onClick={allDone ? handleNext : undefined}
+                        disabled={!allDone}
+                        className={`w-4/5 font-black py-4 rounded-2xl text-base transition-all ${
+                          allDone
+                            ? 'bg-brand-500 hover:bg-brand-400 active:scale-95 text-white'
+                            : 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                        }`}
+                      >
+                        Completar bloque →
+                      </button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+
             <style>{`
               @keyframes slideInUp {
                 from { opacity: 0; transform: translateY(10px); }
