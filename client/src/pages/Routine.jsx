@@ -6,6 +6,7 @@ import ConfettiScreen from '../components/ConfettiScreen.jsx';
 import WellbeingScale from '../components/WellbeingScale.jsx';
 import PRCelebration from '../components/PRCelebration.jsx';
 import HoldButton from '../components/HoldButton.jsx';
+import AdminTabBar from '../components/AdminTabBar.jsx';
 
 function getYouTubeId(url) {
   if (!url) return null;
@@ -49,9 +50,9 @@ export default function Routine({ adminPlay = false }) {
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [error, setError] = useState('');
-  const [wellbeingDone, setWellbeingDone] = useState(false);
+  const [showPostWellbeing, setShowPostWellbeing] = useState(false);
   const [wellbeingScore, setWellbeingScore] = useState(null);
+  const [error, setError] = useState('');
   const [isOverview, setIsOverview] = useState(false);
   const [prAlert, setPrAlert] = useState(null); // { count, exercises[] }
   const [feedbacks, setFeedbacks] = useState({}); // { exerciseId: 'green'|'yellow'|'red' }
@@ -132,7 +133,11 @@ export default function Routine({ adminPlay = false }) {
     if (isLastSection) {
       if (sessionId) await axios.post(`/api/workouts/${sessionId}/complete`);
       if (adminPlay && routineId) localStorage.removeItem(`adminPlay_section_${routineId}`);
-      setShowConfetti(true);
+      if (adminPlay) {
+        setShowPostWellbeing(true);
+      } else {
+        setShowConfetti(true);
+      }
     } else {
       setCurrentSectionIdx(i => i + 1);
     }
@@ -158,20 +163,20 @@ export default function Routine({ adminPlay = false }) {
         await axios.post(`/api/admin/routines/${routineId}/wellbeing`, { score: wellbeingScore });
       } catch {}
     }
-    setWellbeingDone(true);
+    setShowPostWellbeing(false);
+    setShowConfetti(true);
   };
 
-  // Pantalla de bienestar (solo admin play, antes de empezar)
-  if (adminPlay && !wellbeingDone && !loading && !error && routine) return (
+  if (showPostWellbeing) return (
     <div className="min-h-screen p-4 max-w-lg mx-auto flex flex-col justify-center gap-6">
       <div className="card">
-        <h2 className="text-xl font-black text-white text-center mb-1">¿Cómo se siente hoy?</h2>
-        <p className="text-gray-400 text-sm text-center mb-6">{routine.name}</p>
+        <h2 className="text-xl font-black text-white text-center mb-1">¿Cómo se sintió?</h2>
+        <p className="text-gray-400 text-sm text-center mb-6">{routine?.name}</p>
         <WellbeingScale selected={wellbeingScore} onSelect={setWellbeingScore} />
       </div>
       <div className="flex gap-3">
         <button
-          onClick={() => setWellbeingDone(true)}
+          onClick={() => { setShowPostWellbeing(false); setShowConfetti(true); }}
           className="bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-5 py-4 rounded-2xl transition-colors"
         >
           Omitir
@@ -181,7 +186,7 @@ export default function Routine({ adminPlay = false }) {
           className={`btn-primary flex-1 py-4 transition-opacity ${!wellbeingScore ? 'opacity-40 cursor-not-allowed' : ''}`}
           disabled={!wellbeingScore}
         >
-          Guardar y empezar
+          Guardar
         </button>
       </div>
     </div>
@@ -232,6 +237,13 @@ export default function Routine({ adminPlay = false }) {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-950">
+      {/* Tab bar de clientes — solo en adminPlay */}
+      {adminPlay && (
+        <div className="flex-shrink-0 px-3 pt-2 bg-gray-950 border-b border-gray-800/40">
+          <AdminTabBar currentUserId={userId} compact />
+        </div>
+      )}
+
       {/* Video — 35% normal, 0 in overview */}
       <div
         style={{
@@ -369,7 +381,7 @@ export default function Routine({ adminPlay = false }) {
                     onSelect={() => setSelectedExercise(ex)}
                     onExerciseUpdate={!adminPlay ? handleExerciseUpdate : undefined}
                     feedback={feedbacks[ex.id]}
-                    onFeedback={!adminPlay ? handleFeedback : undefined}
+                    onFeedback={handleFeedback}
                   />
                 </div>
               ))}

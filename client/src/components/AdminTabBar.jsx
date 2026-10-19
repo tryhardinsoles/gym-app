@@ -20,7 +20,7 @@ export function clearAdminTabs() {
   window.dispatchEvent(new Event('adminTabsChanged'));
 }
 
-export default function AdminTabBar({ currentUserId }) {
+export default function AdminTabBar({ currentUserId, compact = false }) {
   const navigate = useNavigate();
   const [tabs, setTabs] = useState([]);
 
@@ -54,7 +54,7 @@ export default function AdminTabBar({ currentUserId }) {
 
   return (
     <div
-      className="flex overflow-x-auto gap-2 pb-1 mb-5"
+      className={`flex overflow-x-auto gap-2 pb-1 ${compact ? 'mb-1' : 'mb-5'}`}
       style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
     >
       {tabs.map(tab => {
