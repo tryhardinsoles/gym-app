@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
+import { updateAdminTabPath } from '../../components/AdminTabBar.jsx';
 
 const SECTION_NAMES = ['Entrada en calor', 'Bloque 1', 'Bloque 2', 'Bloque 3', 'Bloque 4'];
 
@@ -26,6 +27,15 @@ export default function RoutineEditor() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [propagation, setPropagation] = useState(null); // [{ oldName, changes, labels, days, checked }]
+
+  useEffect(() => {
+    if (userId) {
+      const path = isEdit && routineId
+        ? `/admin/users/${userId}/routines/${routineId}`
+        : `/admin/users/${userId}/routines/new`;
+      updateAdminTabPath(userId, path);
+    }
+  }, [userId, routineId, isEdit]);
 
   useEffect(() => {
     if (!isEdit) return;

@@ -7,10 +7,20 @@ const MAX_TABS = 8;
 export function registerAdminTab(userId, username) {
   try {
     const tabs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    const existing = tabs.findIndex(t => t.userId === userId);
-    if (existing !== -1) return; // ya está
-    const next = [...tabs, { userId, username }].slice(-MAX_TABS);
+    if (tabs.find(t => t.userId === userId)) return; // ya está, no pisar lastPath
+    const next = [...tabs, { userId, username, lastPath: `/admin/users/${userId}` }].slice(-MAX_TABS);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event('adminTabsChanged'));
+  } catch {}
+}
+
+export function updateAdminTabPath(userId, path) {
+  try {
+    const tabs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const idx = tabs.findIndex(t => t.userId === userId);
+    if (idx === -1) return;
+    tabs[idx] = { ...tabs[idx], lastPath: path };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tabs));
     window.dispatchEvent(new Event('adminTabsChanged'));
   } catch {}
 }
@@ -62,7 +72,7 @@ export default function AdminTabBar({ currentUserId, compact = false }) {
         return (
           <button
             key={tab.userId}
-            onClick={() => navigate(`/admin/users/${tab.userId}`)}
+            onClick={() => navigate(tab.lastPath || `/admin/users/${tab.userId}`)}
             className={`flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all border ${
               isActive
                 ? 'bg-brand-500/15 text-brand-400 border-brand-500/30'

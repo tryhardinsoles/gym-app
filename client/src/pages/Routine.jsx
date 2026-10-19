@@ -6,7 +6,7 @@ import ConfettiScreen from '../components/ConfettiScreen.jsx';
 import WellbeingScale from '../components/WellbeingScale.jsx';
 import PRCelebration from '../components/PRCelebration.jsx';
 import HoldButton from '../components/HoldButton.jsx';
-import AdminTabBar from '../components/AdminTabBar.jsx';
+import AdminTabBar, { updateAdminTabPath } from '../components/AdminTabBar.jsx';
 
 function getYouTubeId(url) {
   if (!url) return null;
@@ -95,6 +95,13 @@ export default function Routine({ adminPlay = false }) {
       localStorage.setItem(`adminPlay_section_${routineId}`, String(currentSectionIdx));
     }
   }, [adminPlay, routineId, currentSectionIdx]);
+
+  // Registrar path actual en la pestaña del cliente
+  useEffect(() => {
+    if (adminPlay && userId && routineId) {
+      updateAdminTabPath(userId, `/admin/users/${userId}/routines/${routineId}/play`);
+    }
+  }, [adminPlay, userId, routineId]);
 
   const handleExerciseUpdate = useCallback(async (exerciseId, field, value) => {
     const url = adminPlay

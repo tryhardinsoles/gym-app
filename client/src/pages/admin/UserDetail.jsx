@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import AdminTabBar, { registerAdminTab } from '../../components/AdminTabBar.jsx';
+import AdminTabBar, { registerAdminTab, updateAdminTabPath } from '../../components/AdminTabBar.jsx';
 
 export default function UserDetail() {
   const { userId } = useParams();
@@ -33,6 +33,7 @@ export default function UserDetail() {
         setUsername(found.username);
         setUserPlan(found.plan || 'start');
         registerAdminTab(userId, found.username);
+        updateAdminTabPath(userId, `/admin/users/${userId}`);
       }
       setRoutines(routinesRes.data);
       const sessions = statsRes.data;
