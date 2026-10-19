@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
+import AdminTabBar, { registerAdminTab } from '../../components/AdminTabBar.jsx';
 
 export default function UserDetail() {
   const { userId } = useParams();
@@ -28,7 +29,11 @@ export default function UserDetail() {
         axios.get(`/api/admin/users/${userId}/stats`).catch(() => ({ data: [] })),
       ]);
       const found = usersRes.data.find(u => u.id === userId);
-      if (found) { setUsername(found.username); setUserPlan(found.plan || 'start'); }
+      if (found) {
+        setUsername(found.username);
+        setUserPlan(found.plan || 'start');
+        registerAdminTab(userId, found.username);
+      }
       setRoutines(routinesRes.data);
       const sessions = statsRes.data;
       if (sessions.length > 0) {
@@ -125,6 +130,7 @@ export default function UserDetail() {
 
   return (
     <div className="min-h-screen p-4 max-w-2xl mx-auto">
+      <AdminTabBar currentUserId={userId} />
       <div className="flex items-center gap-3 pt-6 mb-8">
         <button onClick={() => navigate('/admin/dashboard')} className="bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
           ← Volver

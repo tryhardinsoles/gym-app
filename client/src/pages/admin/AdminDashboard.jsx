@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import AdminTabBar from '../../components/AdminTabBar.jsx';
 
 export default function AdminDashboard() {
   const { logout } = useAuth();
@@ -43,6 +44,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen p-4 max-w-2xl mx-auto">
+      <AdminTabBar />
       <div className="flex items-center justify-between pt-6 mb-8">
         <div>
           <h1 className="text-2xl font-black text-white">Panel Admin</h1>

@@ -39,7 +39,13 @@ export default function Routine({ adminPlay = false }) {
 
   const [routine, setRoutine] = useState(null);
   const [sessionId, setSessionId] = useState(null);
-  const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
+  const [currentSectionIdx, setCurrentSectionIdx] = useState(() => {
+    if (adminPlay && routineId) {
+      const saved = localStorage.getItem(`adminPlay_section_${routineId}`);
+      if (saved != null) return parseInt(saved, 10);
+    }
+    return 0;
+  });
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -82,6 +88,13 @@ export default function Routine({ adminPlay = false }) {
     }
   }, [currentSectionIdx, currentSection]);
 
+  // Persistir progreso de sección en adminPlay
+  useEffect(() => {
+    if (adminPlay && routineId) {
+      localStorage.setItem(`adminPlay_section_${routineId}`, String(currentSectionIdx));
+    }
+  }, [adminPlay, routineId, currentSectionIdx]);
+
   const handleExerciseUpdate = useCallback(async (exerciseId, field, value) => {
     const url = adminPlay
       ? `/api/admin/exercises/${exerciseId}`
@@ -118,6 +131,7 @@ export default function Routine({ adminPlay = false }) {
   const doNext = async () => {
     if (isLastSection) {
       if (sessionId) await axios.post(`/api/workouts/${sessionId}/complete`);
+      if (adminPlay && routineId) localStorage.removeItem(`adminPlay_section_${routineId}`);
       setShowConfetti(true);
     } else {
       setCurrentSectionIdx(i => i + 1);
