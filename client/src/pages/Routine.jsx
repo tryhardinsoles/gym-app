@@ -64,6 +64,7 @@ export default function Routine({ adminPlay = false }) {
         if (adminPlay && routineId) url = `/api/admin/routines/${routineId}/play-data`;
         const { data } = await axios.get(url);
         if (!data) { setError('No tenés rutinas pendientes 🎉'); setLoading(false); return; }
+        if (data.locked) { setError('Este día está bloqueado por tu entrenador'); setLoading(false); return; }
         setRoutine(data.routine);
         setSessionId(data.sessionId);
         // Pre-cargar feedbacks existentes de la sesión

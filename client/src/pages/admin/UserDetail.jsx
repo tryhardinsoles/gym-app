@@ -66,6 +66,16 @@ export default function UserDetail() {
     fetchRoutines();
   };
 
+  const handleLock = async (routineId, isLocked) => {
+    await axios.patch(`/api/admin/routines/${routineId}/lock`, { isLocked });
+    fetchRoutines();
+  };
+
+  const handleLockAll = async (isLocked) => {
+    await axios.patch(`/api/admin/users/${userId}/routines/lock-all`, { isLocked });
+    fetchRoutines();
+  };
+
   const handleClearRoutines = async () => {
     if (!confirm(`¿Borrar TODAS las rutinas de ${username}? Esta acción no se puede deshacer.`)) return;
     await axios.delete(`/api/admin/users/${userId}/routines`);
@@ -299,6 +309,23 @@ export default function UserDetail() {
         </div>
       ) : (
         <div className="space-y-8 mt-4">
+          {/* Controles de bloqueo masivo — solo plan B2B */}
+          {userPlan === 'b2b' && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleLockAll(true)}
+                className="flex-1 bg-red-500/15 text-red-400 hover:bg-red-500/25 font-bold py-2.5 rounded-2xl text-sm transition-colors border border-red-500/20"
+              >
+                🔒 Bloquear todas
+              </button>
+              <button
+                onClick={() => handleLockAll(false)}
+                className="flex-1 bg-green-500/15 text-green-400 hover:bg-green-500/25 font-bold py-2.5 rounded-2xl text-sm transition-colors border border-green-500/20"
+              >
+                🔓 Desbloquear todas
+              </button>
+            </div>
+          )}
           {mesNumbers.map(mes => (
             <div key={mes}>
               <h2 className="text-lg font-black text-white mb-3 border-b border-gray-800 pb-2">
@@ -318,6 +345,11 @@ export default function UserDetail() {
                         <h3 className="font-bold text-white text-lg mb-1">{r.name}</h3>
                         <div className="flex gap-2 flex-wrap">
                           {statusBadge(r)}
+                          {r.isLocked && (
+                            <span className="bg-red-500/15 text-red-400 text-xs font-bold px-2 py-1 rounded-full border border-red-500/20">
+                              🔒 Bloqueado
+                            </span>
+                          )}
                           <span className="bg-gray-800 text-gray-400 text-xs font-medium px-2 py-1 rounded-full">
                             {r.sections.reduce((acc, s) => acc + s.exercises.length, 0)} ejercicios
                           </span>
@@ -340,6 +372,18 @@ export default function UserDetail() {
                       >
                         Ver como alumno
                       </button>
+                      {userPlan === 'b2b' && (
+                        <button
+                          onClick={() => handleLock(r.id, !r.isLocked)}
+                          className={`text-sm font-bold px-4 py-2 rounded-xl transition-colors ${
+                            r.isLocked
+                              ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                              : 'bg-green-500/15 text-green-400 hover:bg-green-500/25'
+                          }`}
+                        >
+                          {r.isLocked ? '🔒 Bloqueado' : '🔓 Activo'}
+                        </button>
+                      )}
                       <button
                         onClick={() => navigate(`/admin/users/${userId}/routines/${r.id}`)}
                         className="bg-gray-800 text-gray-300 hover:bg-gray-700 text-sm font-bold px-4 py-2 rounded-xl transition-colors"

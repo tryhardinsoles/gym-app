@@ -19,6 +19,7 @@ router.get('/current', requireAuth, async (req, res) => {
   });
 
   if (!routine) return res.json(null);
+  if (routine.isLocked) return res.json({ locked: true });
 
   // Pre-cargar pesos del último entrenamiento completado donde el ejercicio tenga el mismo nombre
   const exerciseNames = [...new Set(
@@ -116,11 +117,11 @@ router.get('/has-pending', requireAuth, async (req, res) => {
     prisma.routine.findFirst({
       where: { userId: req.user.id, completedAt: null },
       orderBy: { order: 'asc' },
-      select: { id: true }
+      select: { id: true, isLocked: true }
     }),
     prisma.routine.count({ where: { userId: req.user.id, completedAt: null } })
   ]);
-  res.json({ hasPending: !!routine, pendingCount });
+  res.json({ hasPending: !!routine, pendingCount, isLocked: routine?.isLocked ?? false });
 });
 
 // Historial de rutinas completadas del alumno

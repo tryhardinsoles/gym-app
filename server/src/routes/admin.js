@@ -317,6 +317,26 @@ router.post('/users/:id/import-from-sheet', requireAdmin, async (req, res) => {
   }
 });
 
+// Bloquear / desbloquear una rutina (plan B2B)
+router.patch('/routines/:id/lock', requireAdmin, async (req, res) => {
+  const { isLocked } = req.body;
+  const routine = await prisma.routine.update({
+    where: { id: req.params.id },
+    data: { isLocked: Boolean(isLocked) }
+  });
+  res.json(routine);
+});
+
+// Bloquear / desbloquear todas las rutinas de un alumno (plan B2B)
+router.patch('/users/:userId/routines/lock-all', requireAdmin, async (req, res) => {
+  const { isLocked } = req.body;
+  await prisma.routine.updateMany({
+    where: { userId: req.params.userId },
+    data: { isLocked: Boolean(isLocked) }
+  });
+  res.json({ ok: true });
+});
+
 // Resetear rutina (marcarla como no completada)
 router.patch('/routines/:id/reset', requireAdmin, async (req, res) => {
   const routine = await prisma.routine.update({

@@ -136,6 +136,7 @@ export default function Home() {
   const [saved, setSaved] = useState(false);
   const [lastCompleted, setLastCompleted] = useState(null);
   const [hasPending, setHasPending] = useState(null);
+  const [isPendingLocked, setIsPendingLocked] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -170,6 +171,7 @@ export default function Home() {
     ]).then(([lastRes, pendingRes, historyRes]) => {
       setLastCompleted(lastRes.data?.completedAt ? new Date(lastRes.data.completedAt) : null);
       setHasPending(pendingRes.data.hasPending);
+      setIsPendingLocked(pendingRes.data.isLocked ?? false);
       setPendingCount(pendingRes.data.pendingCount ?? 0);
       setHistory(historyRes.data || []);
     }).finally(() => setLoading(false));
@@ -375,11 +377,12 @@ export default function Home() {
       <div className="mt-6">
         <StarBorder>
         <button
-          className="btn-primary text-xl py-5 relative"
-          onClick={() => navigate('/routine')}
+          className={`text-xl py-5 relative ${isPendingLocked ? 'btn-secondary opacity-60 cursor-not-allowed' : 'btn-primary'}`}
+          onClick={() => !isPendingLocked && navigate('/routine')}
+          disabled={isPendingLocked}
         >
-          Comenzar Rutina
-          {pendingCount > 1 && (
+          {isPendingLocked ? '🔒 Día bloqueado' : 'Comenzar Rutina'}
+          {!isPendingLocked && pendingCount > 1 && (
             <span className="absolute -top-1.5 -right-1.5 bg-white text-brand-600 text-xs font-black w-5 h-5 rounded-full flex items-center justify-center">
               {pendingCount}
             </span>
