@@ -244,6 +244,7 @@ export default function UserDetail() {
             >
               <option value="start">Start — 1 call/semana</option>
               <option value="performance">Performance — 3 calls/semana</option>
+              <option value="b2b">B2B — Sin agenda</option>
             </select>
             <button
               onClick={async () => {

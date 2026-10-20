@@ -8,7 +8,7 @@ import { requireAdmin } from '../middleware/admin.js';
 const router = Router();
 const prisma = new PrismaClient();
 
-const PLAN_LIMITS = { start: 1, performance: 3 };
+const PLAN_LIMITS = { start: 1, performance: 3, b2b: 0 };
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'estefygregory@gmail.com';
 
 const DAY_FULL_ES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -167,6 +167,9 @@ router.post('/book/:slotId', requireAuth, async (req, res) => {
     where: { userId: req.user.id, weekStart }
   });
 
+  if (plan === 'b2b') {
+    return res.status(403).json({ error: 'El plan B2B no incluye llamadas de agenda' });
+  }
   if (usedThisWeek >= maxCalls) {
     return res.status(400).json({
       error: `Tu plan ${plan === 'performance' ? 'Performance' : 'Start'} permite máximo ${maxCalls} llamada${maxCalls > 1 ? 's' : ''} por semana`

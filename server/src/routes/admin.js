@@ -68,7 +68,7 @@ router.put('/users/:id', requireAdmin, async (req, res) => {
   const data = {};
   if (username) data.username = username;
   if (password) data.password = password;
-  if (plan && ['start', 'performance'].includes(plan)) data.plan = plan;
+  if (plan && ['start', 'performance', 'b2b'].includes(plan)) data.plan = plan;
   try {
     const user = await prisma.user.update({ where: { id: req.params.id }, data });
     res.json({ id: user.id, username: user.username, plan: user.plan });

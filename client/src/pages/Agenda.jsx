@@ -148,6 +148,41 @@ export default function Agenda() {
     </div>
   );
 
+  if (plan === 'b2b') return (
+    <div className="min-h-screen p-4 max-w-lg mx-auto">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} logout={logout} />
+      <div className="flex justify-between items-center pt-6 pb-8">
+        <button
+          onClick={() => setSidebarOpen(v => !v)}
+          className="w-10 h-10 flex flex-col items-center justify-center rounded-2xl hover:bg-gray-800 transition-colors"
+          style={{ gap: '6px' }}
+        >
+          <span style={{ display:'block', height:'2px', width:'20px', borderRadius:'999px', backgroundColor:'white' }} />
+          <span style={{ display:'block', height:'2px', width:'20px', borderRadius:'999px', backgroundColor:'white' }} />
+          <span style={{ display:'block', height:'2px', width:'12px', borderRadius:'999px', backgroundColor:'#e01020' }} />
+        </button>
+        <span className="text-xs font-black tracking-widest text-gray-500 uppercase">Agenda</span>
+        <div className="w-10" />
+      </div>
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-5">
+        <div className="w-16 h-16 rounded-3xl bg-gray-800 flex items-center justify-center">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <line x1="12" y1="15" x2="12" y2="15" strokeWidth="3"/>
+          </svg>
+        </div>
+        <div>
+          <p className="text-white font-black text-xl mb-2">Plan B2B</p>
+          <p className="text-gray-500 text-sm max-w-xs">
+            Tu plan no incluye llamadas de agenda. Hablá con tu entrenador para más información.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen p-4 max-w-lg mx-auto">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} logout={logout} />
@@ -195,8 +230,8 @@ export default function Agenda() {
         <div>
           <p className="text-white font-black text-base">Llamadas {isCurrentWeek ? 'esta' : 'esa'} semana</p>
           <p className="text-gray-500 text-xs mt-0.5">
-            Plan <span className={plan === 'performance' ? 'text-brand-400 font-bold' : 'text-gray-400 font-bold'}>
-              {plan === 'performance' ? 'Performance' : 'Start'}
+            Plan <span className={`font-bold ${plan === 'performance' ? 'text-brand-400' : plan === 'b2b' ? 'text-blue-400' : 'text-gray-400'}`}>
+              {plan === 'performance' ? 'Performance' : plan === 'b2b' ? 'B2B' : 'Start'}
             </span>
           </p>
         </div>
