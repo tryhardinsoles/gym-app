@@ -14,6 +14,8 @@ import ImportFromSheets from './pages/admin/ImportFromSheets.jsx';
 import Agenda from './pages/Agenda.jsx';
 import AdminAgenda from './pages/admin/AdminAgenda.jsx';
 import Performance from './pages/Performance.jsx';
+import Cobros from './pages/admin/cobros/Cobros.jsx';
+import CuentaDetalle from './pages/admin/cobros/CuentaDetalle.jsx';
 import Achievements from './pages/Achievements.jsx';
 import Settings from './pages/Settings.jsx';
 
@@ -40,6 +42,8 @@ export default function App() {
           <Route path="/admin/users/:userId/generate" element={<ProtectedRoute adminOnly><GenerateRoutines /></ProtectedRoute>} />
           <Route path="/admin/import-sheets" element={<ProtectedRoute adminOnly><ImportFromSheets /></ProtectedRoute>} />
           <Route path="/admin/agenda" element={<ProtectedRoute adminOnly><AdminAgenda /></ProtectedRoute>} />
+          <Route path="/admin/cobros" element={<ProtectedRoute adminOnly><Cobros /></ProtectedRoute>} />
+          <Route path="/admin/cobros/cuenta/:cuentaId" element={<ProtectedRoute adminOnly><CuentaDetalle /></ProtectedRoute>} />
           <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
           <Route path="/performance" element={<ProtectedRoute><Performance /></ProtectedRoute>} />
           <Route path="/achievements" element={<ProtectedRoute><Achievements /></ProtectedRoute>} />

@@ -125,6 +125,12 @@ export default function AdminDashboard() {
           Agenda
         </button>
       </div>
+      <button
+        onClick={() => navigate('/admin/cobros')}
+        className="w-full bg-gray-900 border border-gray-800 hover:border-brand-500/50 text-white font-bold py-3 rounded-2xl transition-colors text-sm mb-6 -mt-3"
+      >
+        Asistencia y cobros (presenciales)
+      </button>
 
       {/* Create form */}
       {showCreate && (

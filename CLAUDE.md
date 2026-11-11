@@ -24,6 +24,7 @@ App de entrenamiento para alumnos (rutinas, agenda de llamadas, performance) con
 - **AgendaSlot**: id, dayOfWeek (0-6), time ("HH:MM"), googleMeetUrl?, isActive, createdAt. Unique [dayOfWeek, time].
 - **AgendaBooking**: id, userId, slotId, weekStart (DateTime UTC, lunes), meetUrl?, createdAt. Unique [slotId, weekStart]. weekStart sale del weekKey "YYYY-MM-DD" (lunes local) que manda el cliente.
 - **WellbeingLog**: id, userId, score (1-10), createdAt.
+- Módulo cobros presenciales (independiente de User): **Cuenta** (quien paga; agrupa familia) 1─N **Alumno** (precioGrupal, precioIndividual?, abonoMensual?, abonoDesde "YYYY-MM", activo, legacyId de la planilla vieja) · **Asistencia** (alumnoId, fecha UTC 00:00, tipo "grupal"|"individual", precio congelado; unique [alumnoId, fecha, tipo]) · **Pago** (cuentaId, fecha, monto, nota) · **Cargo** (cuentaId, alumnoId?, mes, concepto "abono"|libre, monto; unique [alumnoId, mes, concepto]). Saldo cuenta = Σ asistencias + Σ cargos − Σ pagos. Con abono vigente la grupal vale 0.
 
 ## API (`server/src/routes/`)
 Auth: middleware `requireAuth` (Bearer JWT, payload {id, username, isAdmin}). El plan NO está en el JWT: consultarlo en DB.
@@ -35,6 +36,7 @@ Auth: middleware `requireAuth` (Bearer JWT, payload {id, username, isAdmin}). El
 - `wellbeing.js` — POST /api/wellbeing (score 1-10).
 - `agenda.js` (alumno) — GET /api/agenda?weekKey= → {slots, myBookings(+slot), plan, maxCalls, weekKey, bookedSlotIds (todos los usuarios)} · POST /book/:slotId (límite start=1, performance=3; email a admin vía Resend) · DELETE /booking/:id.
 - `agenda.js` (admin) — GET/POST /api/agenda/admin/slots · POST /admin/slots/range (día, desde, hasta, intervalo min) · PATCH/DELETE /admin/slots/:id · GET /admin/bookings?weekKey=.
+- `cobros.js` (admin, /api/cobros) — GET/POST/PUT alumnos (cuentaId "nueva" separa; al mover alumno se mueven sus cargos y, si la cuenta vieja queda vacía, sus pagos) · GET/POST/PUT cuentas · GET /semana?weekKey · POST /asistencia/toggle · GET /resumen?mes (genera abonos idempotente hasta el mes actual) · GET /cuentas/:id/movimientos · POST/DELETE pagos · POST /importar (JSON desde xlsx de la planilla vieja, no duplica).
 - `admin.js` — /api/admin/users (GET sin admins, POST) · PUT/DELETE /users/:id (plan validado) · GET/POST /users/:id/routines · PUT /routines/:id (reemplaza; propaga cambios de nombre a rutinas futuras) · POST /users/:id/import-csv (12 días, nuevo mes) · POST /users/:id/import-from-sheet · POST /import-from-sheets (hoja maestra username + sheet_url) · POST /users/:id/generate-routines (12 rutinas desde CSV + nivel/impacto/tipo/patrones) · PATCH /routines/:id/reset · DELETE /routines/:id · DELETE /users/:id/routines · PATCH /exercises/:id · GET /users/:userId/stats · GET /routines/:id/play-data · GET /youtube-search?q= (sin YOUTUBE_API_KEY devuelve link de búsqueda).
 
 ## Frontend (`client/src/`)
@@ -45,6 +47,7 @@ Router: `App.jsx`.
 - `pages/Agenda.jsx` (/agenda) — semanas por weekKey; slots por día Lun→Dom. Botón Meet activo si diff ∈ [−6, +40] min (timer 10 s). Slots pasados opacidad 35%, badges "Reservado"/"Límite alcanzado". meetLink = `b.meetUrl || b.slot.googleMeetUrl`.
 - `pages/Performance.jsx` (/performance) — solo plan performance (si start: pantalla upgrade). Chips de ejercicios; LineChart fuerza (#e01020, kg) y BarChart volumen (#3b82f6); toggle eje X Fecha / N° de clase; Y domain [dataMin*0.85, dataMax*1.1].
 - Admin `pages/admin/`: `AdminDashboard.jsx` (alumnos, crear/borrar, ver contraseñas, links a import y agenda) · `UserDetail.jsx` (rutinas por mes, acciones, selector de plan → PUT user, stats) · `RoutineEditor.jsx` (5 secciones fijas: Entrada en calor, Bloque 1–4; youtubeUrl auto al salir del nombre) · `AdminAgenda.jsx` (alta por rango o individual, activar/desactivar, Meet por slot, reservas de la semana) · `UserStats.jsx` · `GenerateRoutines.jsx` · `ImportFromSheets.jsx`.
+- Cobros `pages/admin/cobros/` (/admin/cobros?tab=asistencia|saldos|alumnos, /admin/cobros/cuenta/:id): `Cobros.jsx` (tabs) · `AsistenciaSemana.jsx` (grilla Lun–Vie(+Sáb); celda cicla vacío→G→I→G+I si tiene precio individual) · `Saldos.jsx` (resumen mensual por cuenta + registrar pago) · `AlumnosCobros.jsx` (alta/edición, cuenta compartida, abono) · `ImportarPlanilla.jsx` (lee .xlsx con `xlsx` vía import dinámico) · `CuentaDetalle.jsx` (estado de cuenta, borrar pagos) · `PagoForm.jsx` · `utils.js`.
 
 ## Componentes
 - `Sidebar.jsx` — drawer z-50; nav Entrenamientos (/), Agenda, Performance; props isOpen, onClose, user, logout (no recibe plan).

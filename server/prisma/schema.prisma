@@ -141,3 +141,73 @@ model WellbeingLog {
   score     Int
   createdAt DateTime @default(now())
 }
+
+// ── Asistencia y cobros (alumnos presenciales, independiente de User) ─────────
+
+model Cuenta {
+  id        String   @id @default(cuid())
+  nombre    String
+  notas     String?
+  createdAt DateTime @default(now())
+
+  alumnos Alumno[]
+  pagos   Pago[]
+  cargos  Cargo[]
+}
+
+model Alumno {
+  id               String   @id @default(cuid())
+  nombre           String
+  cuentaId         String
+  cuenta           Cuenta   @relation(fields: [cuentaId], references: [id])
+  precioGrupal     Float    @default(0)
+  precioIndividual Float?
+  abonoMensual     Float?
+  abonoDesde       String?  // "YYYY-MM": primer mes que se cobra el abono
+  activo           Boolean  @default(true)
+  legacyId         String?  @unique // ID de la planilla vieja
+  createdAt        DateTime @default(now())
+
+  asistencias Asistencia[]
+  cargos      Cargo[]
+}
+
+model Asistencia {
+  id        String   @id @default(cuid())
+  alumnoId  String
+  alumno    Alumno   @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  fecha     DateTime // medianoche UTC del día
+  tipo      String   // "grupal" | "individual"
+  precio    Float    // precio congelado al registrar
+  createdAt DateTime @default(now())
+
+  @@unique([alumnoId, fecha, tipo])
+  @@index([fecha])
+}
+
+model Pago {
+  id        String   @id @default(cuid())
+  cuentaId  String
+  cuenta    Cuenta   @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  fecha     DateTime
+  monto     Float
+  nota      String?
+  createdAt DateTime @default(now())
+
+  @@index([cuentaId])
+}
+
+model Cargo {
+  id        String   @id @default(cuid())
+  cuentaId  String
+  cuenta    Cuenta   @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  alumnoId  String?
+  alumno    Alumno?  @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  mes       String   // "YYYY-MM"
+  concepto  String   // "abono" | texto libre
+  monto     Float
+  createdAt DateTime @default(now())
+
+  @@unique([alumnoId, mes, concepto])
+  @@index([cuentaId])
+}

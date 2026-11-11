@@ -9,6 +9,7 @@ import workoutRoutes from './routes/workouts.js';
 import wellbeingRoutes from './routes/wellbeing.js';
 import agendaRoutes from './routes/agenda.js';
 import performanceRoutes from './routes/performance.js';
+import cobrosRoutes from './routes/cobros.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -29,6 +30,7 @@ app.use('/api/workouts', workoutRoutes);
 app.use('/api/wellbeing', wellbeingRoutes);
 app.use('/api/agenda', agendaRoutes);
 app.use('/api/performance', performanceRoutes);
+app.use('/api/cobros', cobrosRoutes);
 
 if (isProd) {
   const clientDist = path.join(__dirname, '../../client/dist');
