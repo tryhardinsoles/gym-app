@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAdmin } from '../middleware/admin.js';
+import { google } from 'googleapis';
 
 // Asistencia y cobros de alumnos presenciales.
 // Modelo: Cuenta (quien paga) 1─N Alumno; cargos = Asistencia.precio + Cargo (abonos);
@@ -277,6 +278,39 @@ router.delete('/pagos/:id', wrap(async (req, res) => {
 }));
 
 // ── Importación desde la planilla vieja ───────────────────────────────────────
+// Descarga la planilla como .xlsx a partir del link (el cliente la parsea).
+// 1) export público si está compartida "cualquier persona con el enlace";
+// 2) si no, Drive API con la service account (si la planilla está compartida con ella).
+router.post('/planilla-xlsx', wrap(async (req, res) => {
+  const id = String(req.body.url || '').match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)?.[1];
+  if (!id) return res.status(400).json({ error: 'Link de Google Sheets inválido' });
+
+  const r = await fetch(`https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`, { redirect: 'follow' });
+  const tipo = r.headers.get('content-type') || '';
+  if (r.ok && !tipo.includes('text/html')) {
+    res.set('Content-Type', 'application/octet-stream');
+    return res.send(Buffer.from(await r.arrayBuffer()));
+  }
+
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const key = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  if (email && key) {
+    try {
+      const auth = new google.auth.JWT({ email, key, scopes: ['https://www.googleapis.com/auth/drive.readonly'] });
+      const drive = google.drive({ version: 'v3', auth });
+      const { data } = await drive.files.export(
+        { fileId: id, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+        { responseType: 'arraybuffer' },
+      );
+      res.set('Content-Type', 'application/octet-stream');
+      return res.send(Buffer.from(data));
+    } catch { /* cae al mensaje de abajo */ }
+  }
+  res.status(403).json({
+    error: `No puedo abrir la planilla. Compartila como "Cualquier persona con el enlace (Lector)"${email ? ` o compartila con ${email}` : ''}.`,
+  });
+}));
+
 // body: {alumnos:[{legacyId,nombre,precio,activo}], asistencias:[{legacyId,fecha,precio}], pagos:[{legacyId,fecha,monto}]}
 router.post('/importar', wrap(async (req, res) => {
   const { alumnos = [], asistencias = [], pagos = [] } = req.body;

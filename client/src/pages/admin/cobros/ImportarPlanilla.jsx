@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-// Importa la planilla vieja (PRESENTES) descargada como .xlsx:
+// Importa la planilla vieja (PRESENTES) a partir de su link (el server la baja como .xlsx):
 // ALUMNOS → alumnos, REGISTRO (Presente = TRUE) → clases grupales, PAGOS (Pagó = TRUE) → pagos.
 // Se puede correr más de una vez: no duplica.
 
@@ -28,12 +28,18 @@ export default function ImportarPlanilla({ onDone }) {
   const [estado, setEstado] = useState('');
   const [resultado, setResultado] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [url, setUrl] = useState(() => { try { return localStorage.getItem('cobrosPlanillaUrl') || ''; } catch { return ''; } });
 
-  const leer = async (file) => {
-    setEstado('Leyendo archivo…'); setResultado(null);
+  const leer = async (e) => {
+    e.preventDefault();
+    setEstado('Leyendo planilla…'); setResultado(null); setPreview(null);
     try {
-      const XLSX = await import('xlsx');
-      const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+      try { localStorage.setItem('cobrosPlanillaUrl', url); } catch {}
+      const [XLSX, resp] = await Promise.all([
+        import('xlsx'),
+        axios.post('/api/cobros/planilla-xlsx', { url }, { responseType: 'arraybuffer' }),
+      ]);
+      const wb = XLSX.read(resp.data, { cellDates: true });
       const alumnos = hoja(wb, XLSX, 'ALUMNOS')
         .filter((r) => r.id && r['nombre del alumno'])
         .map((r) => ({ legacyId: String(r.id).trim(), nombre: String(r['nombre del alumno']).trim(), precio: aNum(r['valor por clase']), activo: aBool(r.activo) }));
@@ -48,8 +54,12 @@ export default function ImportarPlanilla({ onDone }) {
       if (!alumnos.length) throw new Error('No encontré la hoja ALUMNOS con columna ID');
       setPreview({ alumnos, asistencias, pagos });
       setEstado('');
-    } catch (e) {
-      setEstado(e.message || 'No se pudo leer el archivo');
+    } catch (err) {
+      let msg = err.message;
+      if (err.response?.data instanceof ArrayBuffer) {
+        try { msg = JSON.parse(new TextDecoder().decode(err.response.data)).error; } catch {}
+      }
+      setEstado(msg || 'No se pudo leer la planilla');
     }
   };
 
@@ -65,8 +75,11 @@ export default function ImportarPlanilla({ onDone }) {
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 mb-3 space-y-3 text-sm">
-      <p className="text-gray-400">En la planilla vieja: <b className="text-white">Archivo → Descargar → Microsoft Excel (.xlsx)</b> y subí ese archivo acá. Se puede importar de nuevo sin duplicar.</p>
-      <input type="file" accept=".xlsx" onChange={(e) => e.target.files[0] && leer(e.target.files[0])} className="block w-full text-gray-400 file:mr-3 file:bg-gray-800 file:text-white file:border-0 file:px-3 file:py-2 file:rounded-xl" />
+      <p className="text-gray-400">Pegá el link de la planilla vieja. Tiene que estar compartida como <b className="text-white">Cualquier persona con el enlace (Lector)</b>. Se puede importar de nuevo sin duplicar.</p>
+      <form onSubmit={leer} className="flex gap-2">
+        <input type="url" required value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…" className="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 focus:outline-none focus:border-brand-500" />
+        <button className="bg-gray-700 hover:bg-gray-600 text-white font-bold px-4 rounded-xl">Leer</button>
+      </form>
       {preview && (
         <div className="space-y-2">
           <p className="text-white">Encontré <b>{preview.alumnos.length}</b> alumnos, <b>{preview.asistencias.length}</b> clases y <b>{preview.pagos.length}</b> pagos.</p>
